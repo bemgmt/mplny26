@@ -3,6 +3,8 @@
 import { ArrowLeft, Download, Trash2, Share2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { downloadImage, shareImage, isShareSupported } from "@/lib/js/utils"
+import { config } from "@/lib/js/config"
 
 interface PhotoGalleryProps {
   photos: string[]
@@ -11,28 +13,16 @@ interface PhotoGalleryProps {
 }
 
 export default function PhotoGallery({ photos, onBack, onDeletePhoto }: PhotoGalleryProps) {
-  const downloadPhoto = (photoDataUrl: string, index: number) => {
-    const link = document.createElement("a")
-    link.download = `lunar-new-year-photo-${index + 1}.png`
-    link.href = photoDataUrl
-    link.click()
+  const handleDownloadPhoto = (photoDataUrl: string, index: number) => {
+    downloadImage(photoDataUrl, `lunar-new-year-photo-${index + 1}.png`)
   }
 
-  const sharePhoto = async (photoDataUrl: string) => {
-    try {
-      const blob = await (await fetch(photoDataUrl)).blob()
-      const file = new File([blob], "lunar-new-year.png", { type: "image/png" })
-
-      if (navigator.share) {
-        await navigator.share({
-          files: [file],
-          title: "Lunar New Year 2026",
-          text: "Check out my Lunar New Year photo!",
-        })
-      }
-    } catch (err) {
-      console.error("[v0] Error sharing:", err)
-    }
+  const handleSharePhoto = async (photoDataUrl: string) => {
+    await shareImage(
+      photoDataUrl,
+      config.branding.primaryText,
+      "Check out my Lunar New Year photo!"
+    )
   }
 
   return (
@@ -60,34 +50,49 @@ export default function PhotoGallery({ photos, onBack, onDeletePhoto }: PhotoGal
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {photos.map((photo, index) => (
-              <Card key={index} className="overflow-hidden group">
+              <Card key={index} className="overflow-hidden">
                 <div className="relative aspect-video">
                   <img
                     src={photo || "/placeholder.svg"}
                     alt={`Photo ${index + 1}`}
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <Button
-                      size="icon"
-                      variant="secondary"
-                      onClick={() => downloadPhoto(photo, index)}
-                      title="Download"
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                    {navigator.share && (
-                      <Button size="icon" variant="secondary" onClick={() => sharePhoto(photo)} title="Share">
-                        <Share2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button size="icon" variant="destructive" onClick={() => onDeletePhoto(index)} title="Delete">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
                 </div>
                 <div className="p-3">
-                  <p className="text-sm text-muted-foreground">Photo {photos.length - index}</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-muted-foreground">Photo {photos.length - index}</p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => handleDownloadPhoto(photo, index)}
+                        title="Download"
+                        className="h-8 w-8"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      {isShareSupported() && (
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={() => handleSharePhoto(photo)}
+                          title="Share"
+                          className="h-8 w-8"
+                        >
+                          <Share2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        onClick={() => onDeletePhoto(index)}
+                        title="Delete"
+                        className="h-8 w-8"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </Card>
             ))}

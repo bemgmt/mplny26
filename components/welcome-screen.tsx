@@ -2,6 +2,7 @@
 
 import { Camera, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { config } from "@/lib/js/config"
 
 interface WelcomeScreenProps {
   onStart: () => void
@@ -25,10 +26,10 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
             <Camera className="h-12 w-12 text-primary" />
           </div>
           <h1 className="text-5xl md:text-6xl font-bold text-balance mb-4 bg-gradient-to-br from-primary via-accent to-primary bg-clip-text text-transparent">
-            Lunar New Year 2026
+            {config.branding.primaryText}
           </h1>
           <p className="text-xl md:text-2xl font-semibold text-foreground/90 mb-2">Photobooth Experience</p>
-          <p className="text-sm md:text-base text-muted-foreground">Monterey Park Chamber of Commerce</p>
+          <p className="text-sm md:text-base text-muted-foreground">{config.branding.secondaryText}</p>
         </div>
 
         {/* Description */}
@@ -65,7 +66,7 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
         </Button>
 
         {/* Footer */}
-        <p className="mt-12 text-xs text-muted-foreground">Year of the Snake • 新年快樂 • Gong Xi Fa Cai</p>
+        <p className="mt-12 text-xs text-muted-foreground">{config.branding.footerText}</p>
       </div>
     </div>
   )

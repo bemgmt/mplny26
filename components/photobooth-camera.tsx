@@ -1,22 +1,22 @@
 "use client"
 
 import { useRef, useState, useEffect } from "react"
-import { Camera, RotateCcw, Download, Sparkles, ArrowLeft } from "lucide-react"
+import { Camera, RotateCcw, Download, Sparkles, ArrowLeft, Maximize2, Minimize2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { startCamera, stopCamera } from "@/lib/js/camera"
+import { getOverlays, applyOverlayToCanvas } from "@/lib/js/photobooth"
+import { downloadImage, formatDateForFilename } from "@/lib/js/utils"
+import { config } from "@/lib/js/config"
 
 interface PhotoboothCameraProps {
   onPhotoCapture: (photoDataUrl: string) => void
   onBack: () => void
 }
 
-const overlays = [
-  { id: "none", name: "No Overlay", emoji: "✨" },
-  { id: "lantern", name: "Lanterns", emoji: "🏮" },
-  { id: "dragon", name: "Dragon", emoji: "🐉" },
-  { id: "envelope", name: "Red Envelope", emoji: "🧧" },
-  { id: "fireworks", name: "Fireworks", emoji: "🎆" },
-]
+const overlays = getOverlays()
+
+type PhotoOrientation = "horizontal" | "vertical"
 
 export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -26,39 +26,34 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
   const [selectedOverlay, setSelectedOverlay] = useState("lantern")
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user")
   const [cameraError, setCameraError] = useState<string | null>(null)
+  const [orientation, setOrientation] = useState<PhotoOrientation>("horizontal")
 
   useEffect(() => {
-    startCamera()
+    handleStartCamera()
     return () => {
-      stopCamera()
+      handleStopCamera()
     }
   }, [facingMode])
 
-  const startCamera = async () => {
+  const handleStartCamera = async () => {
     try {
       setCameraError(null)
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
+      if (!videoRef.current) return
+      
+      const mediaStream = await startCamera(videoRef.current, {
+        facingMode,
+        width: config.camera.idealWidth,
+        height: config.camera.idealHeight,
       })
       setStream(mediaStream)
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream
-      }
     } catch (err) {
-      console.error("[v0] Error accessing camera:", err)
-      setCameraError("Unable to access camera. Please check permissions.")
+      console.error("Error accessing camera:", err)
+      setCameraError(err instanceof Error ? err.message : "Unable to access camera. Please check permissions.")
     }
   }
 
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop())
-    }
+  const handleStopCamera = () => {
+    stopCamera(stream)
   }
 
   const capturePhoto = () => {
@@ -66,52 +61,50 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
 
     const video = videoRef.current
     const canvas = canvasRef.current
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+    
+    // Set canvas dimensions based on orientation
+    if (orientation === "vertical") {
+      // Portrait: height > width
+      canvas.width = Math.min(video.videoWidth, video.videoHeight)
+      canvas.height = Math.max(video.videoWidth, video.videoHeight)
+    } else {
+      // Landscape: width > height
+      canvas.width = Math.max(video.videoWidth, video.videoHeight)
+      canvas.height = Math.min(video.videoWidth, video.videoHeight)
+    }
 
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    // Draw video frame
-    ctx.drawImage(video, 0, 0)
+    // Draw video frame, centered and scaled
+    const sourceAspect = video.videoWidth / video.videoHeight
+    const canvasAspect = canvas.width / canvas.height
+    
+    let sx = 0
+    let sy = 0
+    let sw = video.videoWidth
+    let sh = video.videoHeight
+    
+    if (sourceAspect > canvasAspect) {
+      // Source is wider, crop sides
+      sw = video.videoHeight * canvasAspect
+      sx = (video.videoWidth - sw) / 2
+    } else {
+      // Source is taller, crop top/bottom
+      sh = video.videoWidth / canvasAspect
+      sy = (video.videoHeight - sh) / 2
+    }
+    
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
 
-    // Draw overlay if selected
+    // Apply overlay if selected
     if (selectedOverlay !== "none") {
-      drawOverlay(ctx, canvas.width, canvas.height)
+      applyOverlayToCanvas(canvas, selectedOverlay)
     }
 
+    // Get final image
     const imageDataUrl = canvas.toDataURL("image/png")
     setCapturedImage(imageDataUrl)
-  }
-
-  const drawOverlay = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-    ctx.save()
-
-    // Add decorative frame
-    ctx.strokeStyle = "rgba(220, 38, 38, 0.8)"
-    ctx.lineWidth = 20
-    ctx.strokeRect(10, 10, width - 20, height - 20)
-
-    // Add text overlay
-    ctx.fillStyle = "rgba(220, 38, 38, 0.9)"
-    ctx.font = "bold 48px sans-serif"
-    ctx.textAlign = "center"
-    ctx.fillText("Lunar New Year 2026", width / 2, 80)
-
-    ctx.font = "32px sans-serif"
-    ctx.fillText("Monterey Park Chamber of Commerce", width / 2, height - 40)
-
-    // Add decorative elements based on overlay type
-    ctx.font = "64px sans-serif"
-    const overlay = overlays.find((o) => o.id === selectedOverlay)
-    if (overlay) {
-      ctx.fillText(overlay.emoji, 100, 100)
-      ctx.fillText(overlay.emoji, width - 100, 100)
-      ctx.fillText(overlay.emoji, 100, height - 80)
-      ctx.fillText(overlay.emoji, width - 100, height - 80)
-    }
-
-    ctx.restore()
   }
 
   const retakePhoto = () => {
@@ -127,10 +120,7 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
 
   const downloadPhoto = () => {
     if (!capturedImage) return
-    const link = document.createElement("a")
-    link.download = `lunar-new-year-${Date.now()}.png`
-    link.href = capturedImage
-    link.click()
+    downloadImage(capturedImage, `${formatDateForFilename()}.png`)
   }
 
   const switchCamera = () => {
@@ -151,13 +141,13 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
 
         {/* Camera/Preview Card */}
         <Card className="overflow-hidden mb-6">
-          <div className="relative aspect-video bg-muted">
+          <div className={`relative bg-muted ${orientation === "vertical" ? "aspect-[9/16]" : "aspect-video"}`}>
             {cameraError ? (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center p-6">
                   <Camera className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                   <p className="text-muted-foreground">{cameraError}</p>
-                  <Button onClick={startCamera} className="mt-4">
+                  <Button onClick={handleStartCamera} className="mt-4">
                     Try Again
                   </Button>
                 </div>
@@ -165,11 +155,52 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
             ) : capturedImage ? (
               <img src={capturedImage || "/placeholder.svg"} alt="Captured" className="w-full h-full object-cover" />
             ) : (
-              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              <div className="relative w-full h-full">
+                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                {/* Camera Circle Button Overlay */}
+                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
+                  <button
+                    onClick={capturePhoto}
+                    className="w-20 h-20 rounded-full bg-white border-4 border-primary shadow-lg hover:scale-105 transition-transform active:scale-95 flex items-center justify-center"
+                    aria-label="Take Photo"
+                  >
+                    <div className="w-16 h-16 rounded-full bg-primary"></div>
+                  </button>
+                </div>
+              </div>
             )}
             <canvas ref={canvasRef} className="hidden" />
           </div>
         </Card>
+
+        {/* Orientation Toggle */}
+        {!capturedImage && (
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-sm font-medium">Photo Orientation</span>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant={orientation === "horizontal" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setOrientation("horizontal")}
+                className="flex-1"
+              >
+                <Maximize2 className="mr-2 h-4 w-4" />
+                Horizontal
+              </Button>
+              <Button
+                variant={orientation === "vertical" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setOrientation("vertical")}
+                className="flex-1"
+              >
+                <Minimize2 className="mr-2 h-4 w-4" />
+                Vertical
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Overlay Selector */}
         {!capturedImage && (
@@ -213,16 +244,10 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
               </Button>
             </>
           ) : (
-            <>
-              <Button variant="outline" size="lg" onClick={switchCamera}>
-                <RotateCcw className="mr-2 h-5 w-5" />
-                Flip Camera
-              </Button>
-              <Button size="lg" onClick={capturePhoto} className="px-8">
-                <Camera className="mr-2 h-5 w-5" />
-                Take Photo
-              </Button>
-            </>
+            <Button variant="outline" size="lg" onClick={switchCamera}>
+              <RotateCcw className="mr-2 h-5 w-5" />
+              Flip Camera
+            </Button>
           )}
         </div>
       </div>
