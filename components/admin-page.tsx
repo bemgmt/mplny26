@@ -29,7 +29,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import AdminLogin from "@/components/admin-login"
 import { isAuthenticated, logout } from "@/lib/js/auth"
 import { getTemplates, getTemplateCategories } from "@/lib/js/templates"
@@ -450,9 +450,12 @@ export default function AdminPage() {
                       Add Template
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>Add New Template</DialogTitle>
+                      <DialogDescription>
+                        Upload template images (.png or .jpg) or provide URLs. Templates will be available for use in the photobooth.
+                      </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div>
