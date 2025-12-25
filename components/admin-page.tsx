@@ -150,6 +150,21 @@ export default function AdminPage() {
     }
   }
 
+  const fileToDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result)
+        } else {
+          reject(new Error("Failed to convert file to data URL"))
+        }
+      }
+      reader.onerror = () => reject(new Error("Error reading file"))
+      reader.readAsDataURL(file)
+    })
+  }
+
   const handleAddTemplate = async () => {
     if (!newTemplate.name || !newTemplate.category) {
       alert("Name and category are required")
@@ -161,73 +176,68 @@ export default function AdminPage() {
       let imageUrl = newTemplate.imageUrl
       let thumbnailUrl = newTemplate.thumbnailUrl
 
-      // Upload files if provided
+      // Convert uploaded files to base64 data URLs (works in serverless environments)
       if (templateFile || thumbnailFile) {
-        const uploadFormData = new FormData()
         if (templateFile) {
-          uploadFormData.append("template", templateFile)
+          try {
+            imageUrl = await fileToDataUrl(templateFile)
+          } catch (error) {
+            throw new Error(`Failed to process template file: ${error instanceof Error ? error.message : "Unknown error"}`)
+          }
         }
+
         if (thumbnailFile) {
-          uploadFormData.append("thumbnail", thumbnailFile)
-        }
-
-        const uploadResponse = await fetch("/api/admin/templates/upload", {
-          method: "POST",
-          body: uploadFormData,
-        })
-
-        const uploadData = await uploadResponse.json()
-        if (uploadData.success && uploadData.files) {
-          imageUrl = uploadData.files.template || imageUrl
-          thumbnailUrl = uploadData.files.thumbnail || thumbnailUrl
-        } else {
-          throw new Error(uploadData.error || "Failed to upload files")
+          try {
+            thumbnailUrl = await fileToDataUrl(thumbnailFile)
+          } catch (error) {
+            // If thumbnail fails but template succeeded, use template as thumbnail
+            if (imageUrl) {
+              thumbnailUrl = imageUrl
+            } else {
+              throw new Error(`Failed to process thumbnail file: ${error instanceof Error ? error.message : "Unknown error"}`)
+            }
+          }
+        } else if (templateFile && imageUrl) {
+          // If no thumbnail provided, use template image as thumbnail
+          thumbnailUrl = imageUrl
         }
       }
 
-      // Create template with uploaded file URLs or provided URLs
-      const response = await fetch("/api/admin/templates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...newTemplate,
-          imageUrl,
-          thumbnailUrl,
-        }),
+      // Validate that we have at least one image
+      if (!imageUrl && !thumbnailUrl) {
+        throw new Error("Please provide either a template image file or URL")
+      }
+
+      // Create template with data URLs or provided URLs
+      const templateId = `template-${Date.now()}`
+      const templateToSave: AdminTemplate = {
+        id: templateId,
+        name: newTemplate.name,
+        description: newTemplate.description || "",
+        category: newTemplate.category,
+        thumbnail: thumbnailUrl || imageUrl || "/templates/default-thumb.png",
+        image: imageUrl || thumbnailUrl || "/templates/default.png",
+        createdAt: Date.now(),
+      }
+
+      // Save template to localStorage
+      saveTemplate(templateToSave)
+      
+      alert("Template added successfully!")
+      setIsAddingTemplate(false)
+      setNewTemplate({
+        name: "",
+        description: "",
+        category: "frames",
+        imageUrl: "",
+        thumbnailUrl: "",
       })
-
-      const data = await response.json()
-      if (data.success && data.template) {
-        // Save template to localStorage
-        const templateToSave: AdminTemplate = {
-          id: data.template.id,
-          name: data.template.name,
-          description: data.template.description,
-          category: data.template.category,
-          thumbnail: thumbnailUrl || imageUrl || data.template.thumbnail,
-          image: imageUrl || data.template.image,
-          createdAt: Date.now(),
-        }
-        saveTemplate(templateToSave)
-        
-        alert("Template added successfully!")
-        setIsAddingTemplate(false)
-        setNewTemplate({
-          name: "",
-          description: "",
-          category: "frames",
-          imageUrl: "",
-          thumbnailUrl: "",
-        })
-        setTemplateFile(null)
-        setThumbnailFile(null)
-        setTemplatePreview(null)
-        setThumbnailPreview(null)
-        // Refresh the page to show new template
-        window.location.reload()
-      } else {
-        throw new Error(data.error || "Failed to add template")
-      }
+      setTemplateFile(null)
+      setThumbnailFile(null)
+      setTemplatePreview(null)
+      setThumbnailPreview(null)
+      // Refresh the page to show new template
+      window.location.reload()
     } catch (error) {
       console.error("Error adding template:", error)
       alert(error instanceof Error ? error.message : "Failed to add template")
@@ -620,11 +630,19 @@ export default function AdminPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {templates.map((template) => (
                   <Card key={template.id} className="overflow-hidden">
-                    <div className="aspect-video bg-muted flex items-center justify-center">
-                      <div className="text-center p-4">
-                        <div className="text-4xl mb-2">🖼️</div>
-                        <p className="text-sm text-muted-foreground">Template Preview</p>
-                      </div>
+                    <div className="aspect-video bg-muted flex items-center justify-center overflow-hidden">
+                      {template.thumbnail && (template.thumbnail.startsWith("data:") || template.thumbnail.startsWith("/")) ? (
+                        <img
+                          src={template.thumbnail}
+                          alt={template.name}
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <div className="text-center p-4">
+                          <div className="text-4xl mb-2">🖼️</div>
+                          <p className="text-sm text-muted-foreground">Template Preview</p>
+                        </div>
+                      )}
                     </div>
                     <div className="p-4">
                       <h3 className="font-semibold mb-1">{template.name}</h3>
