@@ -3,6 +3,7 @@
  */
 
 import { config } from "./config"
+import { getAllTemplates, AdminTemplate } from "./admin-storage"
 
 export interface Template {
   id: string
@@ -14,10 +15,27 @@ export interface Template {
 }
 
 /**
- * Get all templates
+ * Get all templates (from config + stored templates)
  */
 export function getTemplates(): Template[] {
-  return config.templates
+  // Get templates from config
+  const configTemplates: Template[] = config.templates
+  
+  // Get stored templates (uploaded by team members)
+  const storedTemplates = getAllTemplates()
+  
+  // Convert stored templates to Template format
+  const storedAsTemplates: Template[] = storedTemplates.map((t) => ({
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    thumbnail: t.thumbnail,
+    image: t.image,
+    category: t.category,
+  }))
+  
+  // Combine and return (stored templates first, then config templates)
+  return [...storedAsTemplates, ...configTemplates]
 }
 
 /**

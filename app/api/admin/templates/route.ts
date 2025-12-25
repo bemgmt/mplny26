@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
 import { config } from "@/lib/js/config"
+import { saveTemplate, AdminTemplate } from "@/lib/js/admin-storage"
 
 /**
  * GET /api/admin/templates
- * Get all templates
+ * Get all templates (from config)
+ * Note: Stored templates (uploaded by team) are managed client-side via localStorage
+ * and merged with config templates in the getTemplates() function
  */
 export async function GET() {
   try {
+    // Return config templates (stored templates are handled client-side)
     return NextResponse.json({
       success: true,
       templates: config.templates,
       count: config.templates.length,
+      note: "Uploaded templates are stored client-side and merged with config templates",
     })
   } catch (error) {
     console.error("Error fetching templates:", error)
@@ -24,6 +29,7 @@ export async function GET() {
 /**
  * POST /api/admin/templates
  * Add a new template
+ * Supports both file uploads (via upload endpoint) and URL-based templates
  */
 export async function POST(request: NextRequest) {
   try {
@@ -37,19 +43,21 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // In a real implementation, this would:
-    // 1. Save uploaded images to storage
-    // 2. Add template to database
-    // 3. Return the new template
-    
-    const newTemplate = {
-      id: `template-${Date.now()}`,
+    // Use provided URLs or default paths
+    const templateId = `template-${Date.now()}`
+    const newTemplate: AdminTemplate = {
+      id: templateId,
       name,
       description: description || "",
       category,
-      thumbnail: thumbnailUrl || "/templates/default-thumb.png",
+      thumbnail: thumbnailUrl || imageUrl || "/templates/default-thumb.png",
       image: imageUrl || "/templates/default.png",
+      createdAt: Date.now(),
     }
+    
+    // Save template to localStorage (client-side will handle this)
+    // For server-side, we return the template and the client will save it
+    // This is because localStorage is not available on the server
     
     return NextResponse.json({
       success: true,

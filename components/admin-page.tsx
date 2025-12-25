@@ -19,6 +19,7 @@ import {
   Database,
   Power,
   RefreshCw,
+  Upload,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -33,7 +34,7 @@ import AdminLogin from "@/components/admin-login"
 import { isAuthenticated, logout } from "@/lib/js/auth"
 import { getTemplates, getTemplateCategories } from "@/lib/js/templates"
 import { getBackgrounds } from "@/lib/js/backgrounds"
-import { getAllPhotos, deletePhotosByIds, getStorageStats, exportPhotosAsJSON } from "@/lib/js/admin-storage"
+import { getAllPhotos, deletePhotosByIds, getStorageStats, exportPhotosAsJSON, saveTemplate, AdminTemplate } from "@/lib/js/admin-storage"
 import { config } from "@/lib/js/config"
 
 export default function AdminPage() {
@@ -45,6 +46,7 @@ export default function AdminPage() {
   const [stats, setStats] = useState<any>(null)
   const [settings, setSettings] = useState<any>(null)
   const [isAddingTemplate, setIsAddingTemplate] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
   const [newTemplate, setNewTemplate] = useState({
     name: "",
     description: "",
@@ -52,6 +54,10 @@ export default function AdminPage() {
     imageUrl: "",
     thumbnailUrl: "",
   })
+  const [templateFile, setTemplateFile] = useState<File | null>(null)
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null)
+  const [templatePreview, setTemplatePreview] = useState<string | null>(null)
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -118,16 +124,92 @@ export default function AdminPage() {
     URL.revokeObjectURL(url)
   }
 
+  const handleFileChange = (file: File | null, type: "template" | "thumbnail") => {
+    if (type === "template") {
+      setTemplateFile(file)
+      if (file) {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          setTemplatePreview(reader.result as string)
+        }
+        reader.readAsDataURL(file)
+      } else {
+        setTemplatePreview(null)
+      }
+    } else {
+      setThumbnailFile(file)
+      if (file) {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          setThumbnailPreview(reader.result as string)
+        }
+        reader.readAsDataURL(file)
+      } else {
+        setThumbnailPreview(null)
+      }
+    }
+  }
+
   const handleAddTemplate = async () => {
+    if (!newTemplate.name || !newTemplate.category) {
+      alert("Name and category are required")
+      return
+    }
+
+    setIsUploading(true)
     try {
+      let imageUrl = newTemplate.imageUrl
+      let thumbnailUrl = newTemplate.thumbnailUrl
+
+      // Upload files if provided
+      if (templateFile || thumbnailFile) {
+        const uploadFormData = new FormData()
+        if (templateFile) {
+          uploadFormData.append("template", templateFile)
+        }
+        if (thumbnailFile) {
+          uploadFormData.append("thumbnail", thumbnailFile)
+        }
+
+        const uploadResponse = await fetch("/api/admin/templates/upload", {
+          method: "POST",
+          body: uploadFormData,
+        })
+
+        const uploadData = await uploadResponse.json()
+        if (uploadData.success && uploadData.files) {
+          imageUrl = uploadData.files.template || imageUrl
+          thumbnailUrl = uploadData.files.thumbnail || thumbnailUrl
+        } else {
+          throw new Error(uploadData.error || "Failed to upload files")
+        }
+      }
+
+      // Create template with uploaded file URLs or provided URLs
       const response = await fetch("/api/admin/templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTemplate),
+        body: JSON.stringify({
+          ...newTemplate,
+          imageUrl,
+          thumbnailUrl,
+        }),
       })
-      
+
       const data = await response.json()
-      if (data.success) {
+      if (data.success && data.template) {
+        // Save template to localStorage
+        const templateToSave: AdminTemplate = {
+          id: data.template.id,
+          name: data.template.name,
+          description: data.template.description,
+          category: data.template.category,
+          thumbnail: thumbnailUrl || imageUrl || data.template.thumbnail,
+          image: imageUrl || data.template.image,
+          createdAt: Date.now(),
+        }
+        saveTemplate(templateToSave)
+        
         alert("Template added successfully!")
         setIsAddingTemplate(false)
         setNewTemplate({
@@ -137,10 +219,20 @@ export default function AdminPage() {
           imageUrl: "",
           thumbnailUrl: "",
         })
+        setTemplateFile(null)
+        setThumbnailFile(null)
+        setTemplatePreview(null)
+        setThumbnailPreview(null)
+        // Refresh the page to show new template
+        window.location.reload()
+      } else {
+        throw new Error(data.error || "Failed to add template")
       }
     } catch (error) {
       console.error("Error adding template:", error)
-      alert("Failed to add template")
+      alert(error instanceof Error ? error.message : "Failed to add template")
+    } finally {
+      setIsUploading(false)
     }
   }
 
@@ -399,29 +491,120 @@ export default function AdminPage() {
                         </Select>
                       </div>
                       <div>
-                        <Label>Image URL</Label>
+                        <Label>Template Image</Label>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="file"
+                              accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null
+                                handleFileChange(file, "template")
+                              }}
+                              className="cursor-pointer"
+                            />
+                          </div>
+                          {templatePreview && (
+                            <div className="relative w-full h-32 border rounded-md overflow-hidden">
+                              <img
+                                src={templatePreview}
+                                alt="Template preview"
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            Upload a .png or .jpg file, or use URL below
+                          </p>
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Template Image URL (Alternative)</Label>
                         <Input
                           value={newTemplate.imageUrl}
                           onChange={(e) => setNewTemplate({ ...newTemplate, imageUrl: e.target.value })}
                           placeholder="/templates/template.png"
+                          disabled={!!templateFile}
                         />
+                        {templateFile && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            File upload takes priority over URL
+                          </p>
+                        )}
                       </div>
                       <div>
-                        <Label>Thumbnail URL</Label>
+                        <Label>Thumbnail Image</Label>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="file"
+                              accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null
+                                handleFileChange(file, "thumbnail")
+                              }}
+                              className="cursor-pointer"
+                            />
+                          </div>
+                          {thumbnailPreview && (
+                            <div className="relative w-full h-32 border rounded-md overflow-hidden">
+                              <img
+                                src={thumbnailPreview}
+                                alt="Thumbnail preview"
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            Upload a .png or .jpg file, or use URL below (optional - will use template image if not provided)
+                          </p>
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Thumbnail URL (Alternative)</Label>
                         <Input
                           value={newTemplate.thumbnailUrl}
                           onChange={(e) =>
                             setNewTemplate({ ...newTemplate, thumbnailUrl: e.target.value })
                           }
                           placeholder="/templates/template-thumb.png"
+                          disabled={!!thumbnailFile}
                         />
+                        {thumbnailFile && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            File upload takes priority over URL
+                          </p>
+                        )}
                       </div>
                       <div className="flex gap-2">
-                        <Button onClick={handleAddTemplate} className="flex-1">
-                          <Save className="mr-2 h-4 w-4" />
-                          Save Template
+                        <Button 
+                          onClick={handleAddTemplate} 
+                          className="flex-1"
+                          disabled={isUploading}
+                        >
+                          {isUploading ? (
+                            <>
+                              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="mr-2 h-4 w-4" />
+                              Upload & Save Template
+                            </>
+                          )}
                         </Button>
-                        <Button variant="outline" onClick={() => setIsAddingTemplate(false)}>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setIsAddingTemplate(false)
+                            setTemplateFile(null)
+                            setThumbnailFile(null)
+                            setTemplatePreview(null)
+                            setThumbnailPreview(null)
+                          }}
+                          disabled={isUploading}
+                        >
                           <X className="mr-2 h-4 w-4" />
                           Cancel
                         </Button>

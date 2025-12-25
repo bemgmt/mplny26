@@ -94,3 +94,65 @@ export function getStorageStats() {
   }
 }
 
+/**
+ * Template storage key
+ */
+const TEMPLATES_STORAGE_KEY = "lunar-new-year-templates"
+
+/**
+ * Get all stored templates
+ */
+export function getAllTemplates(): AdminTemplate[] {
+  if (typeof window === "undefined") return []
+  
+  try {
+    const stored = localStorage.getItem(TEMPLATES_STORAGE_KEY)
+    if (!stored) return []
+    
+    const templates = JSON.parse(stored) as AdminTemplate[]
+    return templates.sort((a, b) => b.createdAt - a.createdAt)
+  } catch (error) {
+    console.error("Error reading templates:", error)
+    return []
+  }
+}
+
+/**
+ * Save a template
+ */
+export function saveTemplate(template: AdminTemplate): void {
+  if (typeof window === "undefined") return
+  
+  try {
+    const templates = getAllTemplates()
+    const existingIndex = templates.findIndex((t) => t.id === template.id)
+    
+    if (existingIndex >= 0) {
+      templates[existingIndex] = template
+    } else {
+      templates.push(template)
+    }
+    
+    localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(templates))
+  } catch (error) {
+    console.error("Error saving template:", error)
+  }
+}
+
+/**
+ * Delete a template by ID
+ */
+export function deleteTemplateById(id: string): boolean {
+  if (typeof window === "undefined") return false
+  
+  try {
+    const templates = getAllTemplates()
+    const filtered = templates.filter((t) => t.id !== id)
+    localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(filtered))
+    return templates.length > filtered.length
+  } catch (error) {
+    console.error("Error deleting template:", error)
+    return false
+  }
+}
+
