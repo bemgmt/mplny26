@@ -123,6 +123,19 @@ export async function GET() {
       ...configOverlays.filter(cfg => !dbOverlays.find(db => db.id === cfg.id)),
     ]
     
+    // Debug: Log what we're sending
+    console.log("=== SENDING OVERLAYS TO CLIENT ===")
+    console.log("Total overlays:", allOverlays.length)
+    allOverlays.forEach((overlay: any) => {
+      console.log(`Overlay ${overlay.id}:`, {
+        name: overlay.name,
+        type: overlay.type,
+        imageUrl: overlay.imageUrl,
+        hasImageUrl: !!overlay.imageUrl,
+      })
+    })
+    console.log("=== END SENDING OVERLAYS ===")
+    
     return NextResponse.json({
       success: true,
       overlays: allOverlays,
