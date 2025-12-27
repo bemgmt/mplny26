@@ -235,7 +235,9 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
 
     // Apply overlay if selected (this will composite on top of the photo)
     if (selectedOverlay !== "none") {
-      await applyOverlayToCanvas(canvas, selectedOverlay)
+      // Find the overlay from the loaded overlays list
+      const overlay = overlays.find(o => o.id === selectedOverlay)
+      await applyOverlayToCanvas(canvas, selectedOverlay, overlay)
     }
 
     // Get final image (photo + overlay composite)

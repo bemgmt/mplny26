@@ -60,20 +60,22 @@ export function drawOverlay(
  */
 export async function applyOverlayToCanvas(
   canvas: HTMLCanvasElement,
-  overlayId: string
+  overlayId: string,
+  overlay?: Overlay
 ): Promise<void> {
   const ctx = canvas.getContext("2d")
   if (!ctx) return
 
-  const overlay = getOverlayById(overlayId)
+  // Use provided overlay or try to find it
+  const overlayToUse = overlay || getOverlayById(overlayId)
   
-  if (!overlay) {
+  if (!overlayToUse) {
     // If overlay not found, use default emoji overlay
     drawOverlay(ctx, canvas.width, canvas.height, overlayId)
     return
   }
 
-  if (overlay.type === "image" && overlay.imageUrl) {
+  if (overlayToUse.type === "image" && overlayToUse.imageUrl) {
     // Image-based overlay - composite the image over the photo
     // The photo is already drawn on the canvas, so we just draw the overlay on top
     return new Promise((resolve, reject) => {
@@ -97,13 +99,13 @@ export async function applyOverlayToCanvas(
       }
       
       overlayImg.onerror = () => {
-        console.error("Failed to load overlay image:", overlay.imageUrl)
+        console.error("Failed to load overlay image:", overlayToUse.imageUrl)
         // Fallback to emoji overlay
         drawOverlay(ctx, canvas.width, canvas.height, overlayId)
         resolve()
       }
       
-      overlayImg.src = overlay.imageUrl
+      overlayImg.src = overlayToUse.imageUrl
     })
   } else {
     // Emoji-based overlay
