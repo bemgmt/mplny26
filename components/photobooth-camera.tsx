@@ -216,6 +216,11 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
     }
   }
 
+  const retakePhoto = () => {
+    setCapturedImage(null)
+    // Camera will restart automatically via useEffect when capturedImage becomes null
+  }
+
   const savePhoto = () => {
     if (capturedImage) {
       onPhotoCapture(capturedImage)
