@@ -1,21 +1,100 @@
 import { NextRequest, NextResponse } from "next/server"
 import { config } from "@/lib/js/config"
-import { saveTemplate, AdminTemplate } from "@/lib/js/admin-storage"
+import { sql } from "@vercel/postgres"
+
+// Initialize the templates table if it doesn't exist
+async function ensureTableExists() {
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS templates (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        category VARCHAR(100) NOT NULL,
+        thumbnail TEXT NOT NULL,
+        image TEXT NOT NULL,
+        created_at BIGINT NOT NULL
+      )
+    `
+  } catch (error) {
+    console.error("Error ensuring table exists:", error)
+    // Table might already exist, continue
+  }
+}
+
+/**
+ * Get templates from Neon Postgres
+ */
+async function getTemplatesFromDB(): Promise<any[]> {
+  try {
+    await ensureTableExists()
+    const result = await sql`
+      SELECT id, name, description, category, thumbnail, image, created_at as createdAt
+      FROM templates
+      ORDER BY created_at DESC
+    `
+    return result.rows || []
+  } catch (error) {
+    console.error("Error reading templates from database:", error)
+    // If database is not configured, return empty array
+    return []
+  }
+}
+
+/**
+ * Save template to Neon Postgres
+ */
+async function saveTemplateToDB(template: any): Promise<void> {
+  try {
+    await ensureTableExists()
+    await sql`
+      INSERT INTO templates (id, name, description, category, thumbnail, image, created_at)
+      VALUES (${template.id}, ${template.name}, ${template.description}, ${template.category}, ${template.thumbnail}, ${template.image}, ${template.createdAt})
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        category = EXCLUDED.category,
+        thumbnail = EXCLUDED.thumbnail,
+        image = EXCLUDED.image
+    `
+  } catch (error) {
+    console.error("Error saving template to database:", error)
+    throw error
+  }
+}
+
+/**
+ * Delete template from Neon Postgres
+ */
+async function deleteTemplateFromDB(templateId: string): Promise<void> {
+  try {
+    await ensureTableExists()
+    await sql`DELETE FROM templates WHERE id = ${templateId}`
+  } catch (error) {
+    console.error("Error deleting template from database:", error)
+    throw error
+  }
+}
 
 /**
  * GET /api/admin/templates
- * Get all templates (from config)
- * Note: Stored templates (uploaded by team) are managed client-side via localStorage
- * and merged with config templates in the getTemplates() function
+ * Get all templates (config + globally stored templates from Neon)
  */
 export async function GET() {
   try {
-    // Return config templates (stored templates are handled client-side)
+    // Get templates from Neon Postgres
+    const dbTemplates = await getTemplatesFromDB()
+    
+    // Combine database templates with config templates
+    const allTemplates = [
+      ...dbTemplates,
+      ...config.templates,
+    ]
+    
     return NextResponse.json({
       success: true,
-      templates: config.templates,
-      count: config.templates.length,
-      note: "Uploaded templates are stored client-side and merged with config templates",
+      templates: allTemplates,
+      count: allTemplates.length,
     })
   } catch (error) {
     console.error("Error fetching templates:", error)
@@ -28,8 +107,7 @@ export async function GET() {
 
 /**
  * POST /api/admin/templates
- * Add a new template
- * Supports both file uploads (via upload endpoint) and URL-based templates
+ * Add a new template (stored in Neon Postgres)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -43,9 +121,9 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // Use provided URLs or default paths
+    // Create new template
     const templateId = `template-${Date.now()}`
-    const newTemplate: AdminTemplate = {
+    const newTemplate = {
       id: templateId,
       name,
       description: description || "",
@@ -54,10 +132,9 @@ export async function POST(request: NextRequest) {
       image: imageUrl || "/templates/default.png",
       createdAt: Date.now(),
     }
-    
-    // Save template to localStorage (client-side will handle this)
-    // For server-side, we return the template and the client will save it
-    // This is because localStorage is not available on the server
+
+    // Save to Neon Postgres
+    await saveTemplateToDB(newTemplate)
     
     return NextResponse.json({
       success: true,
@@ -75,7 +152,7 @@ export async function POST(request: NextRequest) {
 
 /**
  * DELETE /api/admin/templates
- * Delete a template
+ * Delete a template from Neon Postgres
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -89,7 +166,8 @@ export async function DELETE(request: NextRequest) {
       )
     }
     
-    // In a real implementation, this would delete from database
+    // Delete from Neon Postgres
+    await deleteTemplateFromDB(templateId)
     
     return NextResponse.json({
       success: true,
@@ -104,4 +182,3 @@ export async function DELETE(request: NextRequest) {
     )
   }
 }
-

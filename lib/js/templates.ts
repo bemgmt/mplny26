@@ -14,17 +14,51 @@ export interface Template {
   category: string
 }
 
+// Cache for server templates
+let serverTemplatesCache: Template[] | null = null
+let lastFetchTime = 0
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+
 /**
- * Get all templates (from config + stored templates)
+ * Fetch templates from server
  */
-export function getTemplates(): Template[] {
+async function fetchServerTemplates(): Promise<Template[]> {
+  try {
+    const response = await fetch("/api/admin/templates")
+    const data = await response.json()
+    if (data.success && data.templates) {
+      return data.templates.map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        thumbnail: t.thumbnail,
+        image: t.image,
+        category: t.category,
+      }))
+    }
+    return []
+  } catch (error) {
+    console.error("Error fetching server templates:", error)
+    return []
+  }
+}
+
+/**
+ * Get all templates (from server + config + local storage)
+ */
+export async function getTemplatesAsync(): Promise<Template[]> {
+  // Fetch from server (with caching)
+  const now = Date.now()
+  if (!serverTemplatesCache || (now - lastFetchTime) > CACHE_DURATION) {
+    serverTemplatesCache = await fetchServerTemplates()
+    lastFetchTime = now
+  }
+
   // Get templates from config
   const configTemplates: Template[] = config.templates
   
-  // Get stored templates (uploaded by team members)
+  // Get stored templates from localStorage (for backward compatibility)
   const storedTemplates = getAllTemplates()
-  
-  // Convert stored templates to Template format
   const storedAsTemplates: Template[] = storedTemplates.map((t) => ({
     id: t.id,
     name: t.name,
@@ -34,29 +68,75 @@ export function getTemplates(): Template[] {
     category: t.category,
   }))
   
-  // Combine and return (stored templates first, then config templates)
-  return [...storedAsTemplates, ...configTemplates]
+  // Combine: server templates (newest), then stored (local), then config
+  // Remove duplicates by ID
+  const allTemplates = [...serverTemplatesCache, ...storedAsTemplates, ...configTemplates]
+  const uniqueTemplates = allTemplates.filter((template, index, self) =>
+    index === self.findIndex((t) => t.id === template.id)
+  )
+  
+  return uniqueTemplates
+}
+
+/**
+ * Get all templates (synchronous version - uses cache)
+ */
+export function getTemplates(): Template[] {
+  // Get templates from config
+  const configTemplates: Template[] = config.templates
+  
+  // Get stored templates from localStorage
+  const storedTemplates = getAllTemplates()
+  const storedAsTemplates: Template[] = storedTemplates.map((t) => ({
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    thumbnail: t.thumbnail,
+    image: t.image,
+    category: t.category,
+  }))
+  
+  // Include server templates from cache if available
+  const serverTemplates = serverTemplatesCache || []
+  
+  // Combine and remove duplicates
+  const allTemplates = [...serverTemplates, ...storedAsTemplates, ...configTemplates]
+  const uniqueTemplates = allTemplates.filter((template, index, self) =>
+    index === self.findIndex((t) => t.id === template.id)
+  )
+  
+  return uniqueTemplates
+}
+
+/**
+ * Refresh templates from server
+ */
+export async function refreshTemplates(): Promise<void> {
+  serverTemplatesCache = await fetchServerTemplates()
+  lastFetchTime = Date.now()
 }
 
 /**
  * Get template by ID
  */
 export function getTemplateById(id: string): Template | undefined {
-  return config.templates.find((t) => t.id === id)
+  const allTemplates = getTemplates()
+  return allTemplates.find((t) => t.id === id)
 }
 
 /**
  * Get templates by category
  */
 export function getTemplatesByCategory(category: string): Template[] {
-  return config.templates.filter((t) => t.category === category)
+  const allTemplates = getTemplates()
+  return allTemplates.filter((t) => t.category === category)
 }
 
 /**
  * Get all categories
  */
 export function getTemplateCategories(): string[] {
-  const categories = new Set(config.templates.map((t) => t.category))
+  const allTemplates = getTemplates()
+  const categories = new Set(allTemplates.map((t) => t.category))
   return Array.from(categories)
 }
-

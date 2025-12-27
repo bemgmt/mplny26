@@ -45,6 +45,7 @@ export default function AdminPage() {
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([])
   const [stats, setStats] = useState<any>(null)
   const [settings, setSettings] = useState<any>(null)
+  const [templateRefreshKey, setTemplateRefreshKey] = useState(0)
   const [isAddingTemplate, setIsAddingTemplate] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [newTemplate, setNewTemplate] = useState({
@@ -67,9 +68,22 @@ export default function AdminPage() {
         loadPhotos()
         loadStats()
         loadSettings()
+        loadTemplates()
       }
     }
   }, [authenticated])
+
+  const loadTemplates = async () => {
+    try {
+      // Refresh templates from server
+      const { refreshTemplates } = await import("@/lib/js/templates")
+      await refreshTemplates()
+      // Force re-render by updating state
+      setTemplateRefreshKey(prev => prev + 1)
+    } catch (error) {
+      console.error("Error loading templates:", error)
+    }
+  }
 
   const loadPhotos = () => {
     const allPhotos = getAllPhotos()
@@ -150,21 +164,6 @@ export default function AdminPage() {
     }
   }
 
-  const fileToDataUrl = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        if (typeof reader.result === "string") {
-          resolve(reader.result)
-        } else {
-          reject(new Error("Failed to convert file to data URL"))
-        }
-      }
-      reader.onerror = () => reject(new Error("Error reading file"))
-      reader.readAsDataURL(file)
-    })
-  }
-
   const handleAddTemplate = async () => {
     if (!newTemplate.name || !newTemplate.category) {
       alert("Name and category are required")
@@ -176,30 +175,27 @@ export default function AdminPage() {
       let imageUrl = newTemplate.imageUrl
       let thumbnailUrl = newTemplate.thumbnailUrl
 
-      // Convert uploaded files to base64 data URLs (works in serverless environments)
+      // Upload files to Vercel Blob if provided
       if (templateFile || thumbnailFile) {
+        const uploadFormData = new FormData()
         if (templateFile) {
-          try {
-            imageUrl = await fileToDataUrl(templateFile)
-          } catch (error) {
-            throw new Error(`Failed to process template file: ${error instanceof Error ? error.message : "Unknown error"}`)
-          }
+          uploadFormData.append("template", templateFile)
+        }
+        if (thumbnailFile) {
+          uploadFormData.append("thumbnail", thumbnailFile)
         }
 
-        if (thumbnailFile) {
-          try {
-            thumbnailUrl = await fileToDataUrl(thumbnailFile)
-          } catch (error) {
-            // If thumbnail fails but template succeeded, use template as thumbnail
-            if (imageUrl) {
-              thumbnailUrl = imageUrl
-            } else {
-              throw new Error(`Failed to process thumbnail file: ${error instanceof Error ? error.message : "Unknown error"}`)
-            }
-          }
-        } else if (templateFile && imageUrl) {
-          // If no thumbnail provided, use template image as thumbnail
-          thumbnailUrl = imageUrl
+        const uploadResponse = await fetch("/api/admin/templates/upload", {
+          method: "POST",
+          body: uploadFormData,
+        })
+
+        const uploadData = await uploadResponse.json()
+        if (uploadData.success && uploadData.files) {
+          imageUrl = uploadData.files.template || imageUrl
+          thumbnailUrl = uploadData.files.thumbnail || thumbnailUrl
+        } else {
+          throw new Error(uploadData.error || "Failed to upload files")
         }
       }
 
@@ -208,36 +204,41 @@ export default function AdminPage() {
         throw new Error("Please provide either a template image file or URL")
       }
 
-      // Create template with data URLs or provided URLs
-      const templateId = `template-${Date.now()}`
-      const templateToSave: AdminTemplate = {
-        id: templateId,
-        name: newTemplate.name,
-        description: newTemplate.description || "",
-        category: newTemplate.category,
-        thumbnail: thumbnailUrl || imageUrl || "/templates/default-thumb.png",
-        image: imageUrl || thumbnailUrl || "/templates/default.png",
-        createdAt: Date.now(),
-      }
-
-      // Save template to localStorage
-      saveTemplate(templateToSave)
-      
-      alert("Template added successfully!")
-      setIsAddingTemplate(false)
-      setNewTemplate({
-        name: "",
-        description: "",
-        category: "frames",
-        imageUrl: "",
-        thumbnailUrl: "",
+      // Save template to server (globally accessible)
+      const response = await fetch("/api/admin/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...newTemplate,
+          imageUrl,
+          thumbnailUrl,
+        }),
       })
-      setTemplateFile(null)
-      setThumbnailFile(null)
-      setTemplatePreview(null)
-      setThumbnailPreview(null)
-      // Refresh the page to show new template
-      window.location.reload()
+
+      const data = await response.json()
+      if (data.success && data.template) {
+        // Refresh templates from server
+        const { refreshTemplates } = await import("@/lib/js/templates")
+        await refreshTemplates()
+        
+        alert("Template added successfully! It will be available to all users.")
+        setIsAddingTemplate(false)
+        setNewTemplate({
+          name: "",
+          description: "",
+          category: "frames",
+          imageUrl: "",
+          thumbnailUrl: "",
+        })
+        setTemplateFile(null)
+        setThumbnailFile(null)
+        setTemplatePreview(null)
+        setThumbnailPreview(null)
+        // Refresh the page to show new template
+        window.location.reload()
+      } else {
+        throw new Error(data.error || "Failed to add template")
+      }
     } catch (error) {
       console.error("Error adding template:", error)
       alert(error instanceof Error ? error.message : "Failed to add template")

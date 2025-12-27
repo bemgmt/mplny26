@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { writeFile, mkdir } from "fs/promises"
-import { join } from "path"
-import { existsSync } from "fs"
+import { put } from "@vercel/blob"
 
 /**
  * POST /api/admin/templates/upload
- * Upload template image files (.png, .jpg, .jpeg)
+ * Upload template images to Vercel Blob Storage
  */
 export async function POST(request: NextRequest) {
   try {
@@ -17,21 +15,6 @@ export async function POST(request: NextRequest) {
     if (!templateFile && !thumbnailFile) {
       return NextResponse.json(
         { success: false, error: "At least one file (template or thumbnail) is required" },
-        { status: 400 }
-      )
-    }
-
-    // Validate file sizes (max 10MB per file)
-    const maxSize = 10 * 1024 * 1024 // 10MB
-    if (templateFile && templateFile.size > maxSize) {
-      return NextResponse.json(
-        { success: false, error: "Template file is too large. Maximum size is 10MB." },
-        { status: 400 }
-      )
-    }
-    if (thumbnailFile && thumbnailFile.size > maxSize) {
-      return NextResponse.json(
-        { success: false, error: "Thumbnail file is too large. Maximum size is 10MB." },
         { status: 400 }
       )
     }
@@ -66,52 +49,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Ensure templates directory exists
-    const publicDir = join(process.cwd(), "public")
-    const templatesDir = join(publicDir, "templates")
-    
-    try {
-      // Check if public directory exists
-      if (!existsSync(publicDir)) {
-        console.error("Public directory does not exist:", publicDir)
-        return NextResponse.json(
-          { success: false, error: "Public directory not found. Please ensure the public folder exists." },
-          { status: 500 }
-        )
-      }
-      
-      // Create templates directory if it doesn't exist
-      if (!existsSync(templatesDir)) {
-        await mkdir(templatesDir, { recursive: true })
-        console.log("Created templates directory:", templatesDir)
-      }
-    } catch (dirError) {
-      console.error("Error creating templates directory:", dirError)
-      const errorMsg = dirError instanceof Error ? dirError.message : "Unknown error"
+    // Validate file sizes (max 10MB per file)
+    const maxSize = 10 * 1024 * 1024 // 10MB
+    if (templateFile && templateFile.size > maxSize) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: `Failed to create templates directory: ${errorMsg}. This may be a permissions issue or the file system may be read-only.` 
-        },
-        { status: 500 }
+        { success: false, error: "Template file is too large. Maximum size is 10MB." },
+        { status: 400 }
+      )
+    }
+    if (thumbnailFile && thumbnailFile.size > maxSize) {
+      return NextResponse.json(
+        { success: false, error: "Thumbnail file is too large. Maximum size is 10MB." },
+        { status: 400 }
       )
     }
 
     const timestamp = Date.now()
     const uploadedFiles: { template?: string; thumbnail?: string } = {}
 
-    // Upload template file
+    // Upload template file to Vercel Blob
     if (templateFile) {
       try {
         const templateExtension = templateFile.name.split(".").pop()?.toLowerCase() || "png"
-        const templateFileName = `template-${timestamp}.${templateExtension}`
-        const templatePath = join(templatesDir, templateFileName)
+        const templateFileName = `templates/template-${timestamp}.${templateExtension}`
+        
+        const blob = await put(templateFileName, templateFile, {
+          access: "public",
+        })
 
-        const bytes = await templateFile.arrayBuffer()
-        const buffer = Buffer.from(bytes)
-        await writeFile(templatePath, buffer)
-
-        uploadedFiles.template = `/templates/${templateFileName}`
+        uploadedFiles.template = blob.url
       } catch (fileError) {
         console.error("Error uploading template file:", fileError)
         return NextResponse.json(
@@ -121,18 +87,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Upload thumbnail file
+    // Upload thumbnail file to Vercel Blob
     if (thumbnailFile) {
       try {
         const thumbnailExtension = thumbnailFile.name.split(".").pop()?.toLowerCase() || "png"
-        const thumbnailFileName = `template-${timestamp}-thumb.${thumbnailExtension}`
-        const thumbnailPath = join(templatesDir, thumbnailFileName)
+        const thumbnailFileName = `templates/template-${timestamp}-thumb.${thumbnailExtension}`
+        
+        const blob = await put(thumbnailFileName, thumbnailFile, {
+          access: "public",
+        })
 
-        const bytes = await thumbnailFile.arrayBuffer()
-        const buffer = Buffer.from(bytes)
-        await writeFile(thumbnailPath, buffer)
-
-        uploadedFiles.thumbnail = `/templates/${thumbnailFileName}`
+        uploadedFiles.thumbnail = blob.url
       } catch (fileError) {
         console.error("Error uploading thumbnail file:", fileError)
         // If template was uploaded successfully, we can still return it
@@ -168,4 +133,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
