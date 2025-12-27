@@ -171,11 +171,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (type === "image" && !imageUrl) {
-      return NextResponse.json(
-        { success: false, error: "Image URL is required for image-type overlays" },
-        { status: 400 }
-      )
+    // Strict validation: image overlays MUST have a valid imageUrl
+    if (type === "image") {
+      if (!imageUrl || imageUrl.trim() === "" || imageUrl === "null" || imageUrl === "undefined") {
+        console.error("Rejecting image overlay without valid imageUrl:", {
+          id,
+          name,
+          type,
+          imageUrl,
+          imageUrlType: typeof imageUrl,
+        })
+        return NextResponse.json(
+          { success: false, error: "Image URL is required for image-type overlays. Please upload an image file." },
+          { status: 400 }
+        )
+      }
     }
 
     if (type === "emoji" && !emoji) {
