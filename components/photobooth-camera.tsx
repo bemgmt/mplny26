@@ -15,8 +15,6 @@ interface PhotoboothCameraProps {
   onBack: () => void
 }
 
-const overlays = getOverlays()
-
 type PhotoOrientation = "horizontal" | "vertical"
 
 export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothCameraProps) {
@@ -110,8 +108,33 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
         canvas.height = rect.height
       }
 
-      // Clear and draw overlay preview
+      // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height)
+      
+      // Draw video frame first (scaled to fit canvas)
+      const videoAspect = video.videoWidth / video.videoHeight
+      const canvasAspect = canvas.width / canvas.height
+      
+      let drawWidth = canvas.width
+      let drawHeight = canvas.height
+      let drawX = 0
+      let drawY = 0
+      
+      if (videoAspect > canvasAspect) {
+        // Video is wider, fit to height
+        drawHeight = canvas.height
+        drawWidth = canvas.height * videoAspect
+        drawX = (canvas.width - drawWidth) / 2
+      } else {
+        // Video is taller, fit to width
+        drawWidth = canvas.width
+        drawHeight = canvas.width / videoAspect
+        drawY = (canvas.height - drawHeight) / 2
+      }
+      
+      ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight)
+      
+      // Then draw overlay on top (compositing)
       ctx.drawImage(overlayPreviewImage, 0, 0, canvas.width, canvas.height)
 
       animationFrameId = requestAnimationFrame(updatePreview)

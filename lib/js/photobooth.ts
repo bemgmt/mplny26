@@ -3,35 +3,16 @@
  */
 
 import { config } from "./config"
+import { getOverlays as getAllOverlays, getOverlayById as getOverlayByIdFromOverlays, Overlay } from "./overlays"
 
-export interface Overlay {
-  id: string
-  name: string
-  emoji?: string
-  imageUrl?: string // For image-based overlays
-  type: "emoji" | "image" // Type of overlay
-}
+// Re-export Overlay type for convenience
+export type { Overlay }
 
 /**
- * Get all available overlays (from config + database)
- */
-export function getOverlays(): Overlay[] {
-  // Convert config overlays to new format
-  const configOverlays: Overlay[] = config.overlays.map(overlay => ({
-    id: overlay.id,
-    name: overlay.name,
-    emoji: overlay.emoji,
-    type: "emoji" as const,
-  }))
-  
-  return configOverlays
-}
-
-/**
- * Get overlay by ID
+ * Get overlay by ID (from overlays module which includes database overlays)
  */
 export function getOverlayById(id: string): Overlay | undefined {
-  return getOverlays().find((o) => o.id === id)
+  return getOverlayByIdFromOverlays(id)
 }
 
 /**
@@ -93,13 +74,15 @@ export async function applyOverlayToCanvas(
   }
 
   if (overlay.type === "image" && overlay.imageUrl) {
-    // Image-based overlay - draw the image over the photo
+    // Image-based overlay - composite the image over the photo
+    // The photo is already drawn on the canvas, so we just draw the overlay on top
     return new Promise((resolve, reject) => {
       const overlayImg = new Image()
       overlayImg.crossOrigin = "anonymous"
       
       overlayImg.onload = () => {
-        // Draw the overlay image over the photo, covering the entire canvas
+        // Draw the overlay image over the photo (photo shows through transparent areas)
+        // This preserves the photo underneath and composites the overlay on top
         ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height)
         resolve()
       }
