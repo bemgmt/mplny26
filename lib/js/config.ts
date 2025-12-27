@@ -25,7 +25,8 @@ export const config = {
   storage: {
     photosKey: "lunar-new-year-photos",
     sessionKey: "lunar-new-year-session",
-    maxPhotos: 50, // Maximum number of photos to keep in localStorage
+    maxPhotos: 15, // Maximum number of photos to keep in localStorage (reduced due to size limits)
+    compressionQuality: 0.7, // JPEG compression quality (0.0 to 1.0)
   },
   branding: {
     primaryText: "Lunar New Year 2026",

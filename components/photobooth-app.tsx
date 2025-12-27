@@ -24,11 +24,13 @@ export default function PhotoboothApp() {
     getSession()
   }, [])
 
-  const handlePhotoCapture = (photoDataUrl: string) => {
-    // Save to storage
-    savePhoto(photoDataUrl)
+  const handlePhotoCapture = async (photoDataUrl: string) => {
+    // Save to storage (async - compression happens here)
+    savePhoto(photoDataUrl).catch((error) => {
+      console.error("Error saving photo:", error)
+    })
     
-    // Update state
+    // Update state immediately with original (uncompressed) photo for display
     setCapturedPhotos((prev) => [photoDataUrl, ...prev])
     
     // Update session

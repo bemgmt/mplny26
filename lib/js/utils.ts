@@ -3,6 +3,49 @@
  */
 
 /**
+ * Compress image data URL to JPEG with quality setting
+ * This significantly reduces file size for storage
+ */
+export function compressImageDataUrl(dataUrl: string, quality: number = 0.7, maxWidth: number = 1920, maxHeight: number = 1080): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement("canvas")
+      let width = img.width
+      let height = img.height
+
+      // Calculate new dimensions if image is too large
+      if (width > maxWidth || height > maxHeight) {
+        const aspectRatio = width / height
+        if (width > height) {
+          width = maxWidth
+          height = maxWidth / aspectRatio
+        } else {
+          height = maxHeight
+          width = maxHeight * aspectRatio
+        }
+      }
+
+      canvas.width = width
+      canvas.height = height
+
+      const ctx = canvas.getContext("2d")
+      if (!ctx) {
+        reject(new Error("Could not get canvas context"))
+        return
+      }
+
+      // Draw and compress
+      ctx.drawImage(img, 0, 0, width, height)
+      const compressedDataUrl = canvas.toDataURL("image/jpeg", quality)
+      resolve(compressedDataUrl)
+    }
+    img.onerror = () => reject(new Error("Failed to load image"))
+    img.src = dataUrl
+  })
+}
+
+/**
  * Convert data URL to blob
  */
 export function dataURLtoBlob(dataURL: string): Blob {
