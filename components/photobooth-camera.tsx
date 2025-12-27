@@ -248,6 +248,17 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
     if (selectedOverlay !== "none") {
       // Find the overlay from the loaded overlays list
       const overlay = overlays.find(o => o.id === selectedOverlay)
+      console.log("Capturing photo with overlay:", {
+        selectedOverlay,
+        overlayFound: !!overlay,
+        overlay: overlay ? {
+          id: overlay.id,
+          name: overlay.name,
+          type: overlay.type,
+          imageUrl: overlay.imageUrl,
+        } : null,
+        totalOverlays: overlays.length,
+      })
       await applyOverlayToCanvas(canvas, selectedOverlay, overlay)
     }
 

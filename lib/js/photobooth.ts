@@ -69,16 +69,26 @@ export async function applyOverlayToCanvas(
   // Use provided overlay or try to find it
   const overlayToUse = overlay || getOverlayById(overlayId)
   
+  console.log("=== APPLY OVERLAY DEBUG ===")
+  console.log("Overlay ID:", overlayId)
+  console.log("Provided overlay:", overlay)
+  console.log("Overlay to use:", overlayToUse)
+  
   if (!overlayToUse) {
+    console.warn("Overlay not found, using default emoji overlay")
     // If overlay not found, use default emoji overlay
     drawOverlay(ctx, canvas.width, canvas.height, overlayId)
     return
   }
 
+  console.log("Overlay type:", overlayToUse.type)
+  console.log("Overlay imageUrl:", overlayToUse.imageUrl)
+  console.log("Has imageUrl?", !!overlayToUse.imageUrl)
+
   if (overlayToUse.type === "image" && overlayToUse.imageUrl) {
     // Image-based overlay - composite the image over the photo
     // The photo is already drawn on the canvas, so we just draw the overlay on top
-    console.log("Applying overlay to canvas:", {
+    console.log("Applying image overlay to canvas:", {
       overlayId: overlayToUse.id,
       overlayName: overlayToUse.name,
       imageUrl: overlayToUse.imageUrl,
@@ -88,7 +98,16 @@ export async function applyOverlayToCanvas(
       const overlayImg = new Image()
       overlayImg.crossOrigin = "anonymous"
       
+      // Set timeout for image loading
+      const timeout = setTimeout(() => {
+        console.error("Image load timeout:", overlayToUse.imageUrl)
+        overlayImg.onerror = null // Prevent double error handling
+        drawOverlay(ctx, canvas.width, canvas.height, overlayId)
+        resolve()
+      }, 10000) // 10 second timeout
+      
       overlayImg.onload = () => {
+        clearTimeout(timeout)
         console.log("Overlay image loaded successfully for canvas:", overlayToUse.imageUrl)
         // Save the current canvas state (which has the photo)
         ctx.save()
@@ -102,25 +121,34 @@ export async function applyOverlayToCanvas(
         
         // Restore canvas state
         ctx.restore()
+        console.log("=== END APPLY OVERLAY DEBUG (SUCCESS) ===")
         resolve()
       }
       
-      overlayImg.onerror = () => {
+      overlayImg.onerror = (error) => {
+        clearTimeout(timeout)
         console.error("Failed to load overlay image for canvas:", {
           overlayId: overlayToUse.id,
           overlayName: overlayToUse.name,
           imageUrl: overlayToUse.imageUrl,
+          error: error,
         })
         // Fallback to emoji overlay
+        console.log("Falling back to emoji overlay")
         drawOverlay(ctx, canvas.width, canvas.height, overlayId)
+        console.log("=== END APPLY OVERLAY DEBUG (ERROR) ===")
         resolve()
       }
       
       // Add cache-busting query parameter
-      overlayImg.src = `${overlayToUse.imageUrl}?t=${overlayToUse.id}`
+      const imageUrl = `${overlayToUse.imageUrl}?t=${overlayToUse.id}`
+      console.log("Loading image from URL:", imageUrl)
+      overlayImg.src = imageUrl
     })
   } else {
     // Emoji-based overlay
+    console.log("Using emoji overlay (type is not 'image' or imageUrl is missing)")
+    console.log("=== END APPLY OVERLAY DEBUG (EMOJI) ===")
     drawOverlay(ctx, canvas.width, canvas.height, overlayId)
   }
 }
