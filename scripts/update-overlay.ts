@@ -26,7 +26,8 @@ async function updateOverlay(overlayId: string, imagePath: string) {
 
     // Upload to Vercel Blob
     const timestamp = Date.now()
-    const blobFileName = `overlays/overlay-${timestamp}.${imageExtension}`
+    const randomSuffix = Math.random().toString(36).substring(2, 9)
+    const blobFileName = `overlays/overlay-${timestamp}-${randomSuffix}.${imageExtension}`
     
     const blob = await put(blobFileName, imageBuffer, {
       access: "public",

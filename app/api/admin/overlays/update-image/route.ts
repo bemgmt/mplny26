@@ -63,8 +63,9 @@ export async function POST(request: NextRequest) {
 
     // Upload new image to Vercel Blob
     const timestamp = Date.now()
+    const randomSuffix = Math.random().toString(36).substring(2, 9)
     const overlayExtension = overlayFile.name.split(".").pop()?.toLowerCase() || "png"
-    const overlayFileName = `overlays/overlay-${timestamp}.${overlayExtension}`
+    const overlayFileName = `overlays/overlay-${timestamp}-${randomSuffix}.${overlayExtension}`
     
     const blob = await put(overlayFileName, overlayFile, {
       access: "public",
