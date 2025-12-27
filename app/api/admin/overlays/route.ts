@@ -42,6 +42,7 @@ async function getOverlaysFromDB(): Promise<any[]> {
         name: overlay.name,
         type: overlay.type,
         imageUrl: overlay.imageUrl,
+        rawRow: JSON.stringify(overlay),
       })
     })
     console.log("=== END GET OVERLAYS FROM DB ===")
