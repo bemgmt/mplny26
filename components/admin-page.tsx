@@ -192,7 +192,8 @@ export default function AdminPage() {
 
     setIsUploading(true)
     try {
-      let imageUrl = newOverlay.imageUrl
+      // If editing and no new file uploaded, keep existing imageUrl
+      let imageUrl = editingOverlay?.imageUrl || newOverlay.imageUrl
 
       // Upload file to Vercel Blob if provided
       if (overlayFile && newOverlay.type === "image") {
