@@ -119,8 +119,12 @@ export async function GET() {
     
     // Combine database overlays with config overlays
     // Database overlays take precedence (they can override config overlays)
+    // Ensure imageUrl is always included (even if null)
     const allOverlays = [
-      ...dbOverlays,
+      ...dbOverlays.map((overlay: any) => ({
+        ...overlay,
+        imageUrl: overlay.imageUrl || null, // Ensure imageUrl is always present
+      })),
       ...configOverlays.filter(cfg => !dbOverlays.find(db => db.id === cfg.id)),
     ]
     
