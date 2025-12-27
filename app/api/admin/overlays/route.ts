@@ -34,6 +34,10 @@ async function getOverlaysFromDB(): Promise<any[]> {
       ORDER BY created_at DESC
     `
     
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/fdfee33a-97a5-4e20-9e3b-92eddfb0abd6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:32',message:'getOverlaysFromDB result',data:{totalRows:result.rows?.length||0,rows:result.rows?.map((r:any)=>({id:r.id,name:r.name,imageUrl:r.imageUrl,type:r.type}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
+    
     // Debug: Log what we're returning from database
     console.log("=== GET OVERLAYS FROM DB ===")
     console.log("Total overlays:", result.rows?.length || 0)
@@ -62,6 +66,10 @@ async function saveOverlayToDB(overlay: any): Promise<void> {
   try {
     await ensureTableExists()
     
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/fdfee33a-97a5-4e20-9e3b-92eddfb0abd6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:65',message:'saveOverlayToDB entry',data:{overlayId:overlay.id,imageUrl:overlay.imageUrl,imageUrlType:typeof overlay.imageUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
     console.log("=== SAVE OVERLAY TO DB DEBUG ===")
     console.log("Full overlay object:", JSON.stringify(overlay, null, 2))
     console.log("Overlay imageUrl value:", overlay.imageUrl)
@@ -70,21 +78,38 @@ async function saveOverlayToDB(overlay: any): Promise<void> {
     console.log("Overlay imageUrl is undefined?", overlay.imageUrl === undefined)
     console.log("Overlay imageUrl truthy?", !!overlay.imageUrl)
     
-    // Prepare the imageUrl value for SQL
-    const imageUrlValue = overlay.imageUrl || null
+    // Prepare the imageUrl value for SQL - explicitly handle null/undefined
+    const imageUrlValue = overlay.imageUrl && typeof overlay.imageUrl === 'string' && overlay.imageUrl.trim() !== '' 
+      ? overlay.imageUrl.trim() 
+      : null
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/fdfee33a-97a5-4e20-9e3b-92eddfb0abd6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:77',message:'imageUrlValue prepared',data:{imageUrlValue,imageUrlValueType:typeof imageUrlValue,originalImageUrl:overlay.imageUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
     console.log("imageUrlValue for SQL:", imageUrlValue)
     console.log("imageUrlValue type:", typeof imageUrlValue)
+    console.log("imageUrlValue length:", imageUrlValue ? imageUrlValue.length : 0)
     
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/fdfee33a-97a5-4e20-9e3b-92eddfb0abd6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:82',message:'Before SQL INSERT',data:{overlayId:overlay.id,imageUrlValue,allValues:{id:overlay.id,name:overlay.name,emoji:overlay.emoji,imageUrl:imageUrlValue,type:overlay.type}},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    
+    // Use explicit parameter binding to ensure imageUrlValue is correctly passed
     await sql`
       INSERT INTO overlays (id, name, emoji, image_url, type, created_at, updated_at)
       VALUES (${overlay.id}, ${overlay.name}, ${overlay.emoji || null}, ${imageUrlValue}, ${overlay.type}, ${overlay.createdAt}, ${overlay.updatedAt})
       ON CONFLICT (id) DO UPDATE SET
-        name = EXCLUDED.name,
-        emoji = EXCLUDED.emoji,
-        image_url = EXCLUDED.image_url,
-        type = EXCLUDED.type,
-        updated_at = EXCLUDED.updated_at
+        name = ${overlay.name},
+        emoji = ${overlay.emoji || null},
+        image_url = ${imageUrlValue},
+        type = ${overlay.type},
+        updated_at = ${overlay.updatedAt}
     `
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/fdfee33a-97a5-4e20-9e3b-92eddfb0abd6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:95',message:'After SQL INSERT',data:{overlayId:overlay.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     
     // Verify what was actually saved
     const verifyResult = await sql`
@@ -92,6 +117,10 @@ async function saveOverlayToDB(overlay: any): Promise<void> {
       FROM overlays
       WHERE id = ${overlay.id}
     `
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/fdfee33a-97a5-4e20-9e3b-92eddfb0abd6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:102',message:'Verification query result',data:{overlayId:overlay.id,found:verifyResult.rows.length>0,image_url:verifyResult.rows[0]?.image_url,fullRow:verifyResult.rows[0]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
     
     console.log("Verification query result:", {
       found: verifyResult.rows.length > 0,
@@ -106,6 +135,9 @@ async function saveOverlayToDB(overlay: any): Promise<void> {
     
     console.log("Overlay saved successfully to database")
   } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/fdfee33a-97a5-4e20-9e3b-92eddfb0abd6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:110',message:'saveOverlayToDB error',data:{error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     console.error("Error saving overlay to database:", error)
     throw error
   }
@@ -188,6 +220,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { id, name, emoji, imageUrl, type } = body
     
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/fdfee33a-97a5-4e20-9e3b-92eddfb0abd6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:189',message:'POST handler received',data:{body,extracted:{id,name,emoji,imageUrl,type},imageUrlType:typeof imageUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
     console.log("=== POST OVERLAY REQUEST DEBUG ===")
     console.log("Request body:", JSON.stringify(body, null, 2))
     console.log("Extracted values:", {
@@ -244,6 +280,10 @@ export async function POST(request: NextRequest) {
       createdAt: now,
       updatedAt: now,
     }
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/fdfee33a-97a5-4e20-9e3b-92eddfb0abd6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:240',message:'newOverlay created',data:{newOverlay,imageUrl:newOverlay.imageUrl,imageUrlType:typeof newOverlay.imageUrl,type:newOverlay.type},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
 
     console.log("newOverlay object before save:", JSON.stringify(newOverlay, null, 2))
     console.log("newOverlay.imageUrl:", newOverlay.imageUrl)
