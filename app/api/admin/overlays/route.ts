@@ -95,17 +95,29 @@ async function saveOverlayToDB(overlay: any): Promise<void> {
     fetch('http://127.0.0.1:7242/ingest/fdfee33a-97a5-4e20-9e3b-92eddfb0abd6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:82',message:'Before SQL INSERT',data:{overlayId:overlay.id,imageUrlValue,allValues:{id:overlay.id,name:overlay.name,emoji:overlay.emoji,imageUrl:imageUrlValue,type:overlay.type}},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
     // #endregion
     
-    // Use explicit parameter binding to ensure imageUrlValue is correctly passed
-    await sql`
-      INSERT INTO overlays (id, name, emoji, image_url, type, created_at, updated_at)
-      VALUES (${overlay.id}, ${overlay.name}, ${overlay.emoji || null}, ${imageUrlValue}, ${overlay.type}, ${overlay.createdAt}, ${overlay.updatedAt})
-      ON CONFLICT (id) DO UPDATE SET
-        name = ${overlay.name},
-        emoji = ${overlay.emoji || null},
-        image_url = ${imageUrlValue},
-        type = ${overlay.type},
-        updated_at = ${overlay.updatedAt}
+    // Check if overlay exists first
+    const existing = await sql`
+      SELECT id FROM overlays WHERE id = ${overlay.id}
     `
+    
+    if (existing.rows.length > 0) {
+      // Update existing overlay
+      await sql`
+        UPDATE overlays
+        SET name = ${overlay.name},
+            emoji = ${overlay.emoji || null},
+            image_url = ${imageUrlValue},
+            type = ${overlay.type},
+            updated_at = ${overlay.updatedAt}
+        WHERE id = ${overlay.id}
+      `
+    } else {
+      // Insert new overlay
+      await sql`
+        INSERT INTO overlays (id, name, emoji, image_url, type, created_at, updated_at)
+        VALUES (${overlay.id}, ${overlay.name}, ${overlay.emoji || null}, ${imageUrlValue}, ${overlay.type}, ${overlay.createdAt}, ${overlay.updatedAt})
+      `
+    }
     
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/fdfee33a-97a5-4e20-9e3b-92eddfb0abd6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:95',message:'After SQL INSERT',data:{overlayId:overlay.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
