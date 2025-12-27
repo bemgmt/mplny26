@@ -45,6 +45,19 @@ export async function POST(request: NextRequest) {
 
     // Upload overlay file to Vercel Blob
     try {
+      // Check if BLOB_READ_WRITE_TOKEN is configured
+      if (!process.env.BLOB_READ_WRITE_TOKEN) {
+        console.error("BLOB_READ_WRITE_TOKEN is not set")
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: "Blob storage is not configured. Please set BLOB_READ_WRITE_TOKEN in your Vercel project settings.",
+            details: "Go to Vercel Dashboard → Your Project → Storage → Blob → Settings to get your token"
+          },
+          { status: 500 }
+        )
+      }
+
       const overlayExtension = overlayFile.name.split(".").pop()?.toLowerCase() || "png"
       const overlayFileName = `overlays/overlay-${timestamp}.${overlayExtension}`
       
@@ -59,8 +72,22 @@ export async function POST(request: NextRequest) {
       })
     } catch (fileError) {
       console.error("Error uploading overlay file:", fileError)
+      const errorMessage = fileError instanceof Error ? fileError.message : "Unknown error"
+      
+      // Provide more helpful error messages
+      let helpfulMessage = errorMessage
+      if (errorMessage.includes("token") || errorMessage.includes("unauthorized") || errorMessage.includes("403")) {
+        helpfulMessage = "Blob storage token is invalid or expired. Please check your BLOB_READ_WRITE_TOKEN in Vercel settings."
+      } else if (errorMessage.includes("network") || errorMessage.includes("timeout")) {
+        helpfulMessage = "Network error connecting to Vercel Blob. Please try again."
+      }
+      
       return NextResponse.json(
-        { success: false, error: `Failed to upload overlay file: ${fileError instanceof Error ? fileError.message : "Unknown error"}` },
+        { 
+          success: false, 
+          error: `Failed to upload overlay file: ${helpfulMessage}`,
+          originalError: errorMessage
+        },
         { status: 500 }
       )
     }
