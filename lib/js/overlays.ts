@@ -25,14 +25,34 @@ async function fetchServerOverlays(): Promise<Overlay[]> {
     // Add cache-busting query parameter to ensure fresh data
     const response = await fetch(`/api/admin/overlays?t=${Date.now()}`)
     const data = await response.json()
+    
+    // Debug: Log raw API response
+    console.log("Raw API response:", data)
     if (data.success && data.overlays) {
-      const overlays = data.overlays.map((o: any) => ({
-        id: o.id,
-        name: o.name,
-        emoji: o.emoji,
-        imageUrl: o.imageUrl,
-        type: o.type || "emoji",
-      }))
+      console.log("Raw overlays from API:", data.overlays)
+      
+      const overlays = data.overlays.map((o: any) => {
+        // Handle both imageUrl and image_url (in case of inconsistency)
+        const imageUrl = o.imageUrl || o.image_url || null
+        
+        const overlay = {
+          id: o.id,
+          name: o.name,
+          emoji: o.emoji || null,
+          imageUrl: imageUrl,
+          type: o.type || "emoji",
+        }
+        
+        console.log(`Mapped overlay ${overlay.id}:`, {
+          name: overlay.name,
+          type: overlay.type,
+          imageUrl: overlay.imageUrl,
+          rawImageUrl: o.imageUrl,
+          rawImage_url: o.image_url,
+        })
+        
+        return overlay
+      })
       
       // Debug: Log what we fetched
       console.log("Fetched overlays from server:", overlays.map(o => ({
