@@ -62,16 +62,22 @@ async function saveOverlayToDB(overlay: any): Promise<void> {
   try {
     await ensureTableExists()
     
-    console.log("Saving overlay to database:", {
-      id: overlay.id,
-      name: overlay.name,
-      imageUrl: overlay.imageUrl,
-      type: overlay.type,
-    })
+    console.log("=== SAVE OVERLAY TO DB DEBUG ===")
+    console.log("Full overlay object:", JSON.stringify(overlay, null, 2))
+    console.log("Overlay imageUrl value:", overlay.imageUrl)
+    console.log("Overlay imageUrl type:", typeof overlay.imageUrl)
+    console.log("Overlay imageUrl is null?", overlay.imageUrl === null)
+    console.log("Overlay imageUrl is undefined?", overlay.imageUrl === undefined)
+    console.log("Overlay imageUrl truthy?", !!overlay.imageUrl)
+    
+    // Prepare the imageUrl value for SQL
+    const imageUrlValue = overlay.imageUrl || null
+    console.log("imageUrlValue for SQL:", imageUrlValue)
+    console.log("imageUrlValue type:", typeof imageUrlValue)
     
     await sql`
       INSERT INTO overlays (id, name, emoji, image_url, type, created_at, updated_at)
-      VALUES (${overlay.id}, ${overlay.name}, ${overlay.emoji || null}, ${overlay.imageUrl || null}, ${overlay.type}, ${overlay.createdAt}, ${overlay.updatedAt})
+      VALUES (${overlay.id}, ${overlay.name}, ${overlay.emoji || null}, ${imageUrlValue}, ${overlay.type}, ${overlay.createdAt}, ${overlay.updatedAt})
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         emoji = EXCLUDED.emoji,
@@ -79,6 +85,24 @@ async function saveOverlayToDB(overlay: any): Promise<void> {
         type = EXCLUDED.type,
         updated_at = EXCLUDED.updated_at
     `
+    
+    // Verify what was actually saved
+    const verifyResult = await sql`
+      SELECT id, name, image_url, type
+      FROM overlays
+      WHERE id = ${overlay.id}
+    `
+    
+    console.log("Verification query result:", {
+      found: verifyResult.rows.length > 0,
+      savedOverlay: verifyResult.rows[0] ? {
+        id: verifyResult.rows[0].id,
+        name: verifyResult.rows[0].name,
+        image_url: verifyResult.rows[0].image_url,
+        type: verifyResult.rows[0].type,
+      } : null,
+    })
+    console.log("=== END SAVE OVERLAY TO DB DEBUG ===")
     
     console.log("Overlay saved successfully to database")
   } catch (error) {
@@ -164,6 +188,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { id, name, emoji, imageUrl, type } = body
     
+    console.log("=== POST OVERLAY REQUEST DEBUG ===")
+    console.log("Request body:", JSON.stringify(body, null, 2))
+    console.log("Extracted values:", {
+      id,
+      name,
+      emoji,
+      imageUrl,
+      type,
+      imageUrlType: typeof imageUrl,
+      imageUrlIsNull: imageUrl === null,
+      imageUrlIsUndefined: imageUrl === undefined,
+    })
+    
     if (!name || !type) {
       return NextResponse.json(
         { success: false, error: "Name and type are required" },
@@ -207,6 +244,11 @@ export async function POST(request: NextRequest) {
       createdAt: now,
       updatedAt: now,
     }
+
+    console.log("newOverlay object before save:", JSON.stringify(newOverlay, null, 2))
+    console.log("newOverlay.imageUrl:", newOverlay.imageUrl)
+    console.log("newOverlay.imageUrl type:", typeof newOverlay.imageUrl)
+    console.log("=== END POST OVERLAY REQUEST DEBUG ===")
 
     // Save to Neon Postgres
     await saveOverlayToDB(newOverlay)

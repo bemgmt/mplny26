@@ -265,11 +265,15 @@ export default function AdminPage() {
         imageUrl: overlayData.imageUrl,
         type: overlayData.type,
       })
+      
+      const requestBody = JSON.stringify(overlayData)
+      console.log("Request body JSON string:", requestBody)
+      console.log("Parsed back from JSON:", JSON.parse(requestBody))
 
       const response = await fetch("/api/admin/overlays", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(overlayData),
+        body: requestBody,
       })
 
       const data = await response.json()
