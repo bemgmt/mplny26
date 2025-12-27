@@ -184,7 +184,8 @@ export default function AdminPage() {
       return
     }
 
-    if (newOverlay.type === "image" && !overlayFile && !newOverlay.imageUrl) {
+    // For new overlays, require image. For editing, allow keeping existing image
+    if (newOverlay.type === "image" && !editingOverlay && !overlayFile && !newOverlay.imageUrl) {
       alert("Please provide either an overlay image file or URL")
       return
     }
