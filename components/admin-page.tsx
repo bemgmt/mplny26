@@ -296,9 +296,8 @@ export default function AdminPage() {
     return <AdminLogin onSuccess={() => setAuthenticated(true)} onBack={() => router.push("/")} />
   }
 
-  const templates = getTemplates()
+  const overlays = getOverlays()
   const backgrounds = getBackgrounds()
-  const categories = getTemplateCategories()
 
   return (
     <div className="min-h-screen bg-background p-6">

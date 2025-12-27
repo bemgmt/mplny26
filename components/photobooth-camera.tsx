@@ -8,6 +8,7 @@ import { startCamera, stopCamera } from "@/lib/js/camera"
 import { applyOverlayToCanvas } from "@/lib/js/photobooth"
 import { downloadImage, formatDateForFilename } from "@/lib/js/utils"
 import { getOverlays, getOverlaysAsync, refreshOverlays, Overlay } from "@/lib/js/overlays"
+import { config } from "@/lib/js/config"
 
 interface PhotoboothCameraProps {
   onPhotoCapture: (photoDataUrl: string) => void
