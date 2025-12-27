@@ -1,14 +1,13 @@
 "use client"
 
 import { useRef, useState, useEffect } from "react"
-import { Camera, RotateCcw, Download, Sparkles, ArrowLeft, Maximize2, Minimize2, Image as ImageIcon } from "lucide-react"
+import { Camera, RotateCcw, Download, Sparkles, ArrowLeft, Maximize2, Minimize2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { startCamera, stopCamera } from "@/lib/js/camera"
-import { getOverlays, applyOverlayToCanvas, applyTemplateToCanvas } from "@/lib/js/photobooth"
+import { applyOverlayToCanvas } from "@/lib/js/photobooth"
 import { downloadImage, formatDateForFilename } from "@/lib/js/utils"
-import { config } from "@/lib/js/config"
-import { getTemplates, getTemplatesAsync, refreshTemplates, Template } from "@/lib/js/templates"
+import { getOverlays, getOverlaysAsync, refreshOverlays, Overlay } from "@/lib/js/overlays"
 
 interface PhotoboothCameraProps {
   onPhotoCapture: (photoDataUrl: string) => void
@@ -24,67 +23,63 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
-  const [selectedOverlay, setSelectedOverlay] = useState("lantern")
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
-  const [templates, setTemplates] = useState<Template[]>([])
-  const [templatePreviewImage, setTemplatePreviewImage] = useState<HTMLImageElement | null>(null)
+  const [selectedOverlay, setSelectedOverlay] = useState("none")
+  const [overlays, setOverlays] = useState<Overlay[]>([])
+  const [overlayPreviewImage, setOverlayPreviewImage] = useState<HTMLImageElement | null>(null)
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user")
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [orientation, setOrientation] = useState<PhotoOrientation>("horizontal")
   const previewCanvasRef = useRef<HTMLCanvasElement>(null)
 
-  // Load templates on mount and refresh periodically
+  // Load overlays on mount and refresh periodically
   useEffect(() => {
-    const loadTemplates = async () => {
+    const loadOverlays = async () => {
       try {
-        await refreshTemplates()
-        const allTemplates = getTemplates()
-        setTemplates(allTemplates)
+        await refreshOverlays()
+        const allOverlays = getOverlays()
+        setOverlays(allOverlays)
       } catch (error) {
-        console.error("Error loading templates:", error)
-        // Fallback to config templates
-        setTemplates(config.templates)
+        console.error("Error loading overlays:", error)
+        // Fallback to config overlays
+        const configOverlays = getOverlays()
+        setOverlays(configOverlays)
       }
     }
     
     // Load immediately
-    loadTemplates()
+    loadOverlays()
     
-    // Refresh templates every 30 seconds to pick up new uploads
+    // Refresh overlays every 30 seconds to pick up new uploads
     const interval = setInterval(() => {
-      loadTemplates()
+      loadOverlays()
     }, 30000)
     
     return () => clearInterval(interval)
   }, [])
 
-  // Load template preview image when selected template changes
+  // Load overlay preview image when selected overlay changes
   useEffect(() => {
-    if (selectedTemplate) {
-      const template = templates.find(t => t.id === selectedTemplate)
-      if (template) {
-        const img = new Image()
-        img.crossOrigin = "anonymous"
-        img.onload = () => {
-          setTemplatePreviewImage(img)
-        }
-        img.onerror = () => {
-          console.error("Failed to load template preview:", template.image)
-          setTemplatePreviewImage(null)
-        }
-        img.src = template.image
-      } else {
-        setTemplatePreviewImage(null)
+    const overlay = overlays.find(o => o.id === selectedOverlay)
+    if (overlay && overlay.type === "image" && overlay.imageUrl) {
+      const img = new Image()
+      img.crossOrigin = "anonymous"
+      img.onload = () => {
+        setOverlayPreviewImage(img)
       }
+      img.onerror = () => {
+        console.error("Failed to load overlay preview:", overlay.imageUrl)
+        setOverlayPreviewImage(null)
+      }
+      img.src = overlay.imageUrl
     } else {
-      setTemplatePreviewImage(null)
+      setOverlayPreviewImage(null)
     }
-  }, [selectedTemplate, templates])
+  }, [selectedOverlay, overlays])
 
-  // Draw template preview on video
+  // Draw overlay preview on video (for image-based overlays)
   useEffect(() => {
-    if (!videoRef.current || !previewCanvasRef.current || !templatePreviewImage) {
-      // Clear canvas if no template
+    if (!videoRef.current || !previewCanvasRef.current || !overlayPreviewImage) {
+      // Clear canvas if no overlay preview
       if (previewCanvasRef.current) {
         const ctx = previewCanvasRef.current.getContext("2d")
         if (ctx) {
@@ -114,9 +109,9 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
         canvas.height = rect.height
       }
 
-      // Clear and draw template overlay
+      // Clear and draw overlay preview
       ctx.clearRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(templatePreviewImage, 0, 0, canvas.width, canvas.height)
+      ctx.drawImage(overlayPreviewImage, 0, 0, canvas.width, canvas.height)
 
       animationFrameId = requestAnimationFrame(updatePreview)
     }
@@ -128,14 +123,19 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
         cancelAnimationFrame(animationFrameId)
       }
     }
-  }, [templatePreviewImage])
+  }, [overlayPreviewImage])
 
   useEffect(() => {
-    handleStartCamera()
-    return () => {
-      handleStopCamera()
+    if (!capturedImage) {
+      handleStartCamera()
     }
-  }, [facingMode])
+    return () => {
+      if (stream) {
+        handleStopCamera()
+        setStream(null)
+      }
+    }
+  }, [facingMode, capturedImage])
 
   const handleStartCamera = async () => {
     try {
@@ -201,28 +201,18 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
 
     // Apply overlay if selected
     if (selectedOverlay !== "none") {
-      applyOverlayToCanvas(canvas, selectedOverlay)
-    }
-
-    // Apply template if selected (after overlay)
-    if (selectedTemplate) {
-      const template = templates.find(t => t.id === selectedTemplate)
-      if (template) {
-        try {
-          await applyTemplateToCanvas(canvas, template.image)
-        } catch (error) {
-          console.error("Error applying template:", error)
-        }
-      }
+      await applyOverlayToCanvas(canvas, selectedOverlay)
     }
 
     // Get final image
     const imageDataUrl = canvas.toDataURL("image/png")
     setCapturedImage(imageDataUrl)
-  }
-
-  const retakePhoto = () => {
-    setCapturedImage(null)
+    
+    // Stop camera after capturing
+    if (stream) {
+      handleStopCamera()
+      setStream(null)
+    }
   }
 
   const savePhoto = () => {
@@ -271,8 +261,8 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
             ) : (
               <div className="relative w-full h-full">
                 <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-                {/* Template Preview Overlay */}
-                {templatePreviewImage && (
+                {/* Overlay Preview (for image-based overlays) */}
+                {overlayPreviewImage && (
                   <canvas
                     ref={previewCanvasRef}
                     className="absolute inset-0 w-full h-full pointer-events-none"
@@ -339,41 +329,12 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
                   size="sm"
                   onClick={() => setSelectedOverlay(overlay.id)}
                   className="flex-shrink-0"
+                  title={overlay.type === "image" ? overlay.name : undefined}
                 >
-                  <span className="mr-2">{overlay.emoji}</span>
+                  {overlay.type === "emoji" && overlay.emoji && (
+                    <span className="mr-2">{overlay.emoji}</span>
+                  )}
                   {overlay.name}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Template Selector */}
-        {!capturedImage && templates.length > 0 && (
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <ImageIcon className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Select Template</span>
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              <Button
-                variant={selectedTemplate === null ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedTemplate(null)}
-                className="flex-shrink-0"
-              >
-                None
-              </Button>
-              {templates.map((template) => (
-                <Button
-                  key={template.id}
-                  variant={selectedTemplate === template.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedTemplate(template.id)}
-                  className="flex-shrink-0"
-                  title={template.description}
-                >
-                  {template.name}
                 </Button>
               ))}
             </div>

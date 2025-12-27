@@ -7,25 +7,35 @@ import { config } from "./config"
 export interface Overlay {
   id: string
   name: string
-  emoji: string
+  emoji?: string
+  imageUrl?: string // For image-based overlays
+  type: "emoji" | "image" // Type of overlay
 }
 
 /**
- * Get all available overlays
+ * Get all available overlays (from config + database)
  */
 export function getOverlays(): Overlay[] {
-  return config.overlays
+  // Convert config overlays to new format
+  const configOverlays: Overlay[] = config.overlays.map(overlay => ({
+    id: overlay.id,
+    name: overlay.name,
+    emoji: overlay.emoji,
+    type: "emoji" as const,
+  }))
+  
+  return configOverlays
 }
 
 /**
  * Get overlay by ID
  */
 export function getOverlayById(id: string): Overlay | undefined {
-  return config.overlays.find((o) => o.id === id)
+  return getOverlays().find((o) => o.id === id)
 }
 
 /**
- * Draw overlay on canvas
+ * Draw overlay on canvas (for emoji-based overlays)
  */
 export function drawOverlay(
   ctx: CanvasRenderingContext2D,
@@ -52,7 +62,7 @@ export function drawOverlay(
   // Add decorative elements based on overlay type
   if (overlayId !== "none") {
     const overlay = getOverlayById(overlayId)
-    if (overlay) {
+    if (overlay && overlay.type === "emoji" && overlay.emoji) {
       ctx.font = "64px sans-serif"
       ctx.fillText(overlay.emoji, 100, 100)
       ctx.fillText(overlay.emoji, width - 100, 100)
@@ -67,43 +77,44 @@ export function drawOverlay(
 /**
  * Apply overlay to captured image
  */
-export function applyOverlayToCanvas(
+export async function applyOverlayToCanvas(
   canvas: HTMLCanvasElement,
   overlayId: string
-): void {
-  const ctx = canvas.getContext("2d")
-  if (!ctx) return
-
-  drawOverlay(ctx, canvas.width, canvas.height, overlayId)
-}
-
-/**
- * Apply template to captured image
- * The template image is composited over the photo
- */
-export async function applyTemplateToCanvas(
-  canvas: HTMLCanvasElement,
-  templateImageUrl: string
 ): Promise<void> {
   const ctx = canvas.getContext("2d")
   if (!ctx) return
 
-  return new Promise((resolve, reject) => {
-    const templateImg = new Image()
-    templateImg.crossOrigin = "anonymous"
-    
-    templateImg.onload = () => {
-      // Draw the template image over the photo, covering the entire canvas
-      ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height)
-      resolve()
-    }
-    
-    templateImg.onerror = () => {
-      console.error("Failed to load template image:", templateImageUrl)
-      reject(new Error("Failed to load template image"))
-    }
-    
-    templateImg.src = templateImageUrl
-  })
-}
+  const overlay = getOverlayById(overlayId)
+  
+  if (!overlay) {
+    // If overlay not found, use default emoji overlay
+    drawOverlay(ctx, canvas.width, canvas.height, overlayId)
+    return
+  }
 
+  if (overlay.type === "image" && overlay.imageUrl) {
+    // Image-based overlay - draw the image over the photo
+    return new Promise((resolve, reject) => {
+      const overlayImg = new Image()
+      overlayImg.crossOrigin = "anonymous"
+      
+      overlayImg.onload = () => {
+        // Draw the overlay image over the photo, covering the entire canvas
+        ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height)
+        resolve()
+      }
+      
+      overlayImg.onerror = () => {
+        console.error("Failed to load overlay image:", overlay.imageUrl)
+        // Fallback to emoji overlay
+        drawOverlay(ctx, canvas.width, canvas.height, overlayId)
+        resolve()
+      }
+      
+      overlayImg.src = overlay.imageUrl
+    })
+  } else {
+    // Emoji-based overlay
+    drawOverlay(ctx, canvas.width, canvas.height, overlayId)
+  }
+}

@@ -20,6 +20,7 @@ import {
   Power,
   RefreshCw,
   Upload,
+  Sparkles,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -32,9 +33,9 @@ import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import AdminLogin from "@/components/admin-login"
 import { isAuthenticated, logout } from "@/lib/js/auth"
-import { getTemplates, getTemplateCategories } from "@/lib/js/templates"
+import { getOverlays, refreshOverlays, Overlay } from "@/lib/js/overlays"
 import { getBackgrounds } from "@/lib/js/backgrounds"
-import { getAllPhotos, deletePhotosByIds, getStorageStats, exportPhotosAsJSON, saveTemplate, AdminTemplate } from "@/lib/js/admin-storage"
+import { getAllPhotos, deletePhotosByIds, getStorageStats, exportPhotosAsJSON } from "@/lib/js/admin-storage"
 import { config } from "@/lib/js/config"
 
 export default function AdminPage() {
@@ -45,20 +46,18 @@ export default function AdminPage() {
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([])
   const [stats, setStats] = useState<any>(null)
   const [settings, setSettings] = useState<any>(null)
-  const [templateRefreshKey, setTemplateRefreshKey] = useState(0)
-  const [isAddingTemplate, setIsAddingTemplate] = useState(false)
+  const [overlayRefreshKey, setOverlayRefreshKey] = useState(0)
+  const [isAddingOverlay, setIsAddingOverlay] = useState(false)
+  const [editingOverlay, setEditingOverlay] = useState<Overlay | null>(null)
   const [isUploading, setIsUploading] = useState(false)
-  const [newTemplate, setNewTemplate] = useState({
+  const [newOverlay, setNewOverlay] = useState({
     name: "",
-    description: "",
-    category: "frames",
+    emoji: "",
     imageUrl: "",
-    thumbnailUrl: "",
+    type: "image" as "emoji" | "image",
   })
-  const [templateFile, setTemplateFile] = useState<File | null>(null)
-  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null)
-  const [templatePreview, setTemplatePreview] = useState<string | null>(null)
-  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null)
+  const [overlayFile, setOverlayFile] = useState<File | null>(null)
+  const [overlayPreview, setOverlayPreview] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -68,20 +67,19 @@ export default function AdminPage() {
         loadPhotos()
         loadStats()
         loadSettings()
-        loadTemplates()
+        loadOverlays()
       }
     }
   }, [authenticated])
 
-  const loadTemplates = async () => {
+  const loadOverlays = async () => {
     try {
-      // Refresh templates from server
-      const { refreshTemplates } = await import("@/lib/js/templates")
-      await refreshTemplates()
+      // Refresh overlays from server
+      await refreshOverlays()
       // Force re-render by updating state
-      setTemplateRefreshKey(prev => prev + 1)
+      setOverlayRefreshKey(prev => prev + 1)
     } catch (error) {
-      console.error("Error loading templates:", error)
+      console.error("Error loading overlays:", error)
     }
   }
 
@@ -138,112 +136,133 @@ export default function AdminPage() {
     URL.revokeObjectURL(url)
   }
 
-  const handleFileChange = (file: File | null, type: "template" | "thumbnail") => {
-    if (type === "template") {
-      setTemplateFile(file)
-      if (file) {
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          setTemplatePreview(reader.result as string)
-        }
-        reader.readAsDataURL(file)
-      } else {
-        setTemplatePreview(null)
+  const handleFileChange = (file: File | null) => {
+    setOverlayFile(file)
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setOverlayPreview(reader.result as string)
       }
+      reader.readAsDataURL(file)
     } else {
-      setThumbnailFile(file)
-      if (file) {
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          setThumbnailPreview(reader.result as string)
-        }
-        reader.readAsDataURL(file)
-      } else {
-        setThumbnailPreview(null)
-      }
+      setOverlayPreview(null)
     }
   }
 
-  const handleAddTemplate = async () => {
-    if (!newTemplate.name || !newTemplate.category) {
-      alert("Name and category are required")
+  const startEditingOverlay = (overlay: Overlay) => {
+    setEditingOverlay(overlay)
+    setNewOverlay({
+      name: overlay.name,
+      emoji: overlay.emoji || "",
+      imageUrl: overlay.imageUrl || "",
+      type: overlay.type,
+    })
+    setIsAddingOverlay(true)
+  }
+
+  const cancelEdit = () => {
+    setEditingOverlay(null)
+    setIsAddingOverlay(false)
+    setNewOverlay({
+      name: "",
+      emoji: "",
+      imageUrl: "",
+      type: "image",
+    })
+    setOverlayFile(null)
+    setOverlayPreview(null)
+  }
+
+  const handleSaveOverlay = async () => {
+    if (!newOverlay.name) {
+      alert("Name is required")
+      return
+    }
+
+    if (newOverlay.type === "emoji" && !newOverlay.emoji) {
+      alert("Emoji is required for emoji-type overlays")
+      return
+    }
+
+    if (newOverlay.type === "image" && !overlayFile && !newOverlay.imageUrl) {
+      alert("Please provide either an overlay image file or URL")
       return
     }
 
     setIsUploading(true)
     try {
-      let imageUrl = newTemplate.imageUrl
-      let thumbnailUrl = newTemplate.thumbnailUrl
+      let imageUrl = newOverlay.imageUrl
 
-      // Upload files to Vercel Blob if provided
-      if (templateFile || thumbnailFile) {
+      // Upload file to Vercel Blob if provided
+      if (overlayFile && newOverlay.type === "image") {
         const uploadFormData = new FormData()
-        if (templateFile) {
-          uploadFormData.append("template", templateFile)
-        }
-        if (thumbnailFile) {
-          uploadFormData.append("thumbnail", thumbnailFile)
-        }
+        uploadFormData.append("overlay", overlayFile)
 
-        const uploadResponse = await fetch("/api/admin/templates/upload", {
+        const uploadResponse = await fetch("/api/admin/overlays/upload", {
           method: "POST",
           body: uploadFormData,
         })
 
         const uploadData = await uploadResponse.json()
-        if (uploadData.success && uploadData.files) {
-          imageUrl = uploadData.files.template || imageUrl
-          thumbnailUrl = uploadData.files.thumbnail || thumbnailUrl
+        if (uploadData.success && uploadData.file) {
+          imageUrl = uploadData.file
         } else {
-          throw new Error(uploadData.error || "Failed to upload files")
+          throw new Error(uploadData.error || "Failed to upload file")
         }
       }
 
-      // Validate that we have at least one image
-      if (!imageUrl && !thumbnailUrl) {
-        throw new Error("Please provide either a template image file or URL")
-      }
-
-      // Save template to server (globally accessible)
-      const response = await fetch("/api/admin/templates", {
+      // Save overlay to server (globally accessible)
+      const response = await fetch("/api/admin/overlays", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...newTemplate,
-          imageUrl,
-          thumbnailUrl,
+          id: editingOverlay?.id, // Include ID if editing
+          name: newOverlay.name,
+          emoji: newOverlay.type === "emoji" ? newOverlay.emoji : null,
+          imageUrl: newOverlay.type === "image" ? imageUrl : null,
+          type: newOverlay.type,
         }),
       })
 
       const data = await response.json()
-      if (data.success && data.template) {
-        // Refresh templates from server
-        const { refreshTemplates } = await import("@/lib/js/templates")
-        await refreshTemplates()
+      if (data.success && data.overlay) {
+        // Refresh overlays from server
+        await refreshOverlays()
         
-        alert("Template added successfully! It will be available to all users.")
-        setIsAddingTemplate(false)
-        setNewTemplate({
-          name: "",
-          description: "",
-          category: "frames",
-          imageUrl: "",
-          thumbnailUrl: "",
-        })
-        setTemplateFile(null)
-        setThumbnailFile(null)
-        setTemplatePreview(null)
-        setThumbnailPreview(null)
-        // Refresh the page to show new template
+        alert(editingOverlay ? "Overlay updated successfully!" : "Overlay added successfully! It will be available to all users.")
+        cancelEdit()
+        // Refresh the page to show new overlay
         window.location.reload()
       } else {
-        throw new Error(data.error || "Failed to add template")
+        throw new Error(data.error || "Failed to save overlay")
       }
     } catch (error) {
-      console.error("Error adding template:", error)
-      alert(error instanceof Error ? error.message : "Failed to add template")
+      console.error("Error saving overlay:", error)
+      alert(error instanceof Error ? error.message : "Failed to save overlay")
     } finally {
       setIsUploading(false)
+    }
+  }
+
+  const handleDeleteOverlay = async (overlayId: string) => {
+    if (!confirm("Are you sure you want to delete this overlay?")) return
+
+    try {
+      const response = await fetch(`/api/admin/overlays?id=${overlayId}`, {
+        method: "DELETE",
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        await refreshOverlays()
+        alert("Overlay deleted successfully!")
+        window.location.reload()
+      } else {
+        throw new Error(data.error || "Failed to delete overlay")
+      }
+    } catch (error) {
+      console.error("Error deleting overlay:", error)
+      alert(error instanceof Error ? error.message : "Failed to delete overlay")
     }
   }
 
@@ -328,10 +347,10 @@ export default function AdminPage() {
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Templates</p>
-                  <p className="text-2xl font-bold">{templates.length}</p>
+                  <p className="text-sm text-muted-foreground">Overlays</p>
+                  <p className="text-2xl font-bold">{overlays.length}</p>
                 </div>
-                <Image className="h-8 w-8 text-primary opacity-50" />
+                <Sparkles className="h-8 w-8 text-primary opacity-50" />
               </div>
             </Card>
             <Card className="p-4">
@@ -353,9 +372,9 @@ export default function AdminPage() {
               <Camera className="mr-2 h-4 w-4" />
               Photos
             </TabsTrigger>
-            <TabsTrigger value="templates">
-              <Image className="mr-2 h-4 w-4" />
-              Templates
+            <TabsTrigger value="overlays">
+              <Sparkles className="mr-2 h-4 w-4" />
+              Overlays
             </TabsTrigger>
             <TabsTrigger value="backgrounds">
               <Palette className="mr-2 h-4 w-4" />
@@ -446,153 +465,118 @@ export default function AdminPage() {
             </Card>
           </TabsContent>
 
-          {/* Templates Tab */}
-          <TabsContent value="templates" className="space-y-4">
+          {/* Overlays Tab */}
+          <TabsContent value="overlays" className="space-y-4">
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-2xl font-bold">Photo Templates</h2>
-                  <p className="text-muted-foreground">Manage templates that can be applied to photos</p>
+                  <h2 className="text-2xl font-bold">Photo Overlays</h2>
+                  <p className="text-muted-foreground">Manage overlays (emoji or image-based) that can be applied to photos</p>
                 </div>
-                <Dialog open={isAddingTemplate} onOpenChange={setIsAddingTemplate}>
+                <Dialog open={isAddingOverlay} onOpenChange={(open) => {
+                  if (!open) cancelEdit()
+                  setIsAddingOverlay(open)
+                }}>
                   <DialogTrigger asChild>
                     <Button>
                       <Plus className="mr-2 h-4 w-4" />
-                      Add Template
+                      Add Overlay
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                      <DialogTitle>Add New Template</DialogTitle>
+                      <DialogTitle>{editingOverlay ? "Edit Overlay" : "Add New Overlay"}</DialogTitle>
                       <DialogDescription>
-                        Upload template images (.png or .jpg) or provide URLs. Templates will be available for use in the photobooth.
+                        Create emoji-based overlays or upload image overlays (.png or .jpg). Overlays will be available for use in the photobooth.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div>
-                        <Label>Template Name</Label>
-                        <Input
-                          value={newTemplate.name}
-                          onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
-                          placeholder="Classic Frame"
-                        />
-                      </div>
-                      <div>
-                        <Label>Description</Label>
-                        <Textarea
-                          value={newTemplate.description}
-                          onChange={(e) =>
-                            setNewTemplate({ ...newTemplate, description: e.target.value })
-                          }
-                          placeholder="Traditional red and gold frame"
-                        />
-                      </div>
-                      <div>
-                        <Label>Category</Label>
+                        <Label>Overlay Type</Label>
                         <Select
-                          value={newTemplate.category}
-                          onValueChange={(value) => setNewTemplate({ ...newTemplate, category: value })}
+                          value={newOverlay.type}
+                          onValueChange={(value: "emoji" | "image") => setNewOverlay({ ...newOverlay, type: value, imageUrl: "", emoji: "" })}
                         >
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="frames">Frames</SelectItem>
-                            <SelectItem value="borders">Borders</SelectItem>
-                            <SelectItem value="artistic">Artistic</SelectItem>
-                            <SelectItem value="modern">Modern</SelectItem>
+                            <SelectItem value="emoji">Emoji Overlay</SelectItem>
+                            <SelectItem value="image">Image Overlay</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div>
-                        <Label>Template Image</Label>
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="file"
-                              accept=".png,.jpg,.jpeg,image/png,image/jpeg"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0] || null
-                                handleFileChange(file, "template")
-                              }}
-                              className="cursor-pointer"
-                            />
-                          </div>
-                          {templatePreview && (
-                            <div className="relative w-full h-32 border rounded-md overflow-hidden">
-                              <img
-                                src={templatePreview}
-                                alt="Template preview"
-                                className="w-full h-full object-contain"
-                              />
-                            </div>
-                          )}
-                          <p className="text-xs text-muted-foreground">
-                            Upload a .png or .jpg file, or use URL below
+                        <Label>Overlay Name</Label>
+                        <Input
+                          value={newOverlay.name}
+                          onChange={(e) => setNewOverlay({ ...newOverlay, name: e.target.value })}
+                          placeholder="Lanterns"
+                        />
+                      </div>
+                      {newOverlay.type === "emoji" && (
+                        <div>
+                          <Label>Emoji</Label>
+                          <Input
+                            value={newOverlay.emoji}
+                            onChange={(e) => setNewOverlay({ ...newOverlay, emoji: e.target.value })}
+                            placeholder="🏮"
+                            maxLength={2}
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Enter a single emoji character
                           </p>
                         </div>
-                      </div>
-                      <div>
-                        <Label>Template Image URL (Alternative)</Label>
-                        <Input
-                          value={newTemplate.imageUrl}
-                          onChange={(e) => setNewTemplate({ ...newTemplate, imageUrl: e.target.value })}
-                          placeholder="/templates/template.png"
-                          disabled={!!templateFile}
-                        />
-                        {templateFile && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            File upload takes priority over URL
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <Label>Thumbnail Image</Label>
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="file"
-                              accept=".png,.jpg,.jpeg,image/png,image/jpeg"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0] || null
-                                handleFileChange(file, "thumbnail")
-                              }}
-                              className="cursor-pointer"
-                            />
-                          </div>
-                          {thumbnailPreview && (
-                            <div className="relative w-full h-32 border rounded-md overflow-hidden">
-                              <img
-                                src={thumbnailPreview}
-                                alt="Thumbnail preview"
-                                className="w-full h-full object-contain"
-                              />
+                      )}
+                      {newOverlay.type === "image" && (
+                        <>
+                          <div>
+                            <Label>Overlay Image</Label>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="file"
+                                  accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0] || null
+                                    handleFileChange(file)
+                                  }}
+                                  className="cursor-pointer"
+                                />
+                              </div>
+                              {overlayPreview && (
+                                <div className="relative w-full h-32 border rounded-md overflow-hidden">
+                                  <img
+                                    src={overlayPreview}
+                                    alt="Overlay preview"
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
+                              )}
+                              <p className="text-xs text-muted-foreground">
+                                Upload a .png or .jpg file, or use URL below
+                              </p>
                             </div>
-                          )}
-                          <p className="text-xs text-muted-foreground">
-                            Upload a .png or .jpg file, or use URL below (optional - will use template image if not provided)
-                          </p>
-                        </div>
-                      </div>
-                      <div>
-                        <Label>Thumbnail URL (Alternative)</Label>
-                        <Input
-                          value={newTemplate.thumbnailUrl}
-                          onChange={(e) =>
-                            setNewTemplate({ ...newTemplate, thumbnailUrl: e.target.value })
-                          }
-                          placeholder="/templates/template-thumb.png"
-                          disabled={!!thumbnailFile}
-                        />
-                        {thumbnailFile && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            File upload takes priority over URL
-                          </p>
-                        )}
-                      </div>
+                          </div>
+                          <div>
+                            <Label>Overlay Image URL (Alternative)</Label>
+                            <Input
+                              value={newOverlay.imageUrl}
+                              onChange={(e) => setNewOverlay({ ...newOverlay, imageUrl: e.target.value })}
+                              placeholder="/overlays/overlay.png"
+                              disabled={!!overlayFile}
+                            />
+                            {overlayFile && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                File upload takes priority over URL
+                              </p>
+                            )}
+                          </div>
+                        </>
+                      )}
                       <div className="flex gap-2">
                         <Button 
-                          onClick={handleAddTemplate} 
+                          onClick={handleSaveOverlay} 
                           className="flex-1"
                           disabled={isUploading}
                         >
@@ -603,20 +587,14 @@ export default function AdminPage() {
                             </>
                           ) : (
                             <>
-                              <Upload className="mr-2 h-4 w-4" />
-                              Upload & Save Template
+                              <Save className="mr-2 h-4 w-4" />
+                              {editingOverlay ? "Update Overlay" : "Upload & Save Overlay"}
                             </>
                           )}
                         </Button>
                         <Button 
                           variant="outline" 
-                          onClick={() => {
-                            setIsAddingTemplate(false)
-                            setTemplateFile(null)
-                            setThumbnailFile(null)
-                            setTemplatePreview(null)
-                            setThumbnailPreview(null)
-                          }}
+                          onClick={cancelEdit}
                           disabled={isUploading}
                         >
                           <X className="mr-2 h-4 w-4" />
@@ -629,41 +607,65 @@ export default function AdminPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {templates.map((template) => (
-                  <Card key={template.id} className="overflow-hidden">
-                    <div className="aspect-video bg-muted flex items-center justify-center overflow-hidden">
-                      {template.thumbnail && (template.thumbnail.startsWith("data:") || template.thumbnail.startsWith("/")) ? (
-                        <img
-                          src={template.thumbnail}
-                          alt={template.name}
-                          className="w-full h-full object-contain"
-                        />
-                      ) : (
-                        <div className="text-center p-4">
-                          <div className="text-4xl mb-2">🖼️</div>
-                          <p className="text-sm text-muted-foreground">Template Preview</p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-semibold mb-1">{template.name}</h3>
-                      <p className="text-sm text-muted-foreground mb-2">{template.description}</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded">
-                          {template.category}
-                        </span>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="h-6 w-6">
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive">
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                {overlays.map((overlay) => {
+                  const isConfigOverlay = config.overlays.some(o => o.id === overlay.id)
+                  return (
+                    <Card key={overlay.id} className="overflow-hidden">
+                      <div className="aspect-video bg-muted flex items-center justify-center overflow-hidden">
+                        {overlay.type === "image" && overlay.imageUrl ? (
+                          <img
+                            src={overlay.imageUrl}
+                            alt={overlay.name}
+                            className="w-full h-full object-contain"
+                          />
+                        ) : overlay.type === "emoji" && overlay.emoji ? (
+                          <div className="text-center p-4">
+                            <div className="text-6xl mb-2">{overlay.emoji}</div>
+                            <p className="text-sm text-muted-foreground">{overlay.name}</p>
+                          </div>
+                        ) : (
+                          <div className="text-center p-4">
+                            <div className="text-4xl mb-2">✨</div>
+                            <p className="text-sm text-muted-foreground">Overlay Preview</p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4">
+                        <h3 className="font-semibold mb-1">{overlay.name}</h3>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded">
+                            {overlay.type}
+                          </span>
+                          <div className="flex gap-1">
+                            {!isConfigOverlay && (
+                              <>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-6 w-6"
+                                  onClick={() => startEditingOverlay(overlay)}
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-6 w-6 text-destructive"
+                                  onClick={() => handleDeleteOverlay(overlay.id)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </>
+                            )}
+                            {isConfigOverlay && (
+                              <span className="text-xs text-muted-foreground">Built-in</span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  )
+                })}
               </div>
             </Card>
           </TabsContent>
@@ -907,3 +909,4 @@ export default function AdminPage() {
     </div>
   )
 }
+
