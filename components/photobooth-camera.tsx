@@ -221,14 +221,15 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
       sy = (video.videoHeight - sh) / 2
     }
     
+    // Draw video frame to canvas (this is the photo)
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
 
-    // Apply overlay if selected
+    // Apply overlay if selected (this will composite on top of the photo)
     if (selectedOverlay !== "none") {
       await applyOverlayToCanvas(canvas, selectedOverlay)
     }
 
-    // Get final image
+    // Get final image (photo + overlay composite)
     const imageDataUrl = canvas.toDataURL("image/png")
     setCapturedImage(imageDataUrl)
     

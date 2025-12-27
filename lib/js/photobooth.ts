@@ -81,9 +81,18 @@ export async function applyOverlayToCanvas(
       overlayImg.crossOrigin = "anonymous"
       
       overlayImg.onload = () => {
+        // Save the current canvas state (which has the photo)
+        ctx.save()
+        
+        // Use source-over compositing to ensure photo shows through transparent areas
+        ctx.globalCompositeOperation = "source-over"
+        
         // Draw the overlay image over the photo (photo shows through transparent areas)
         // This preserves the photo underneath and composites the overlay on top
         ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height)
+        
+        // Restore canvas state
+        ctx.restore()
         resolve()
       }
       
