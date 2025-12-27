@@ -77,3 +77,33 @@ export function applyOverlayToCanvas(
   drawOverlay(ctx, canvas.width, canvas.height, overlayId)
 }
 
+/**
+ * Apply template to captured image
+ * The template image is composited over the photo
+ */
+export async function applyTemplateToCanvas(
+  canvas: HTMLCanvasElement,
+  templateImageUrl: string
+): Promise<void> {
+  const ctx = canvas.getContext("2d")
+  if (!ctx) return
+
+  return new Promise((resolve, reject) => {
+    const templateImg = new Image()
+    templateImg.crossOrigin = "anonymous"
+    
+    templateImg.onload = () => {
+      // Draw the template image over the photo, covering the entire canvas
+      ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height)
+      resolve()
+    }
+    
+    templateImg.onerror = () => {
+      console.error("Failed to load template image:", templateImageUrl)
+      reject(new Error("Failed to load template image"))
+    }
+    
+    templateImg.src = templateImageUrl
+  })
+}
+

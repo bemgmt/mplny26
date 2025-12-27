@@ -1,13 +1,14 @@
 "use client"
 
 import { useRef, useState, useEffect } from "react"
-import { Camera, RotateCcw, Download, Sparkles, ArrowLeft, Maximize2, Minimize2 } from "lucide-react"
+import { Camera, RotateCcw, Download, Sparkles, ArrowLeft, Maximize2, Minimize2, Image as ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { startCamera, stopCamera } from "@/lib/js/camera"
-import { getOverlays, applyOverlayToCanvas } from "@/lib/js/photobooth"
+import { getOverlays, applyOverlayToCanvas, applyTemplateToCanvas } from "@/lib/js/photobooth"
 import { downloadImage, formatDateForFilename } from "@/lib/js/utils"
 import { config } from "@/lib/js/config"
+import { getTemplates, getTemplatesAsync, refreshTemplates, Template } from "@/lib/js/templates"
 
 interface PhotoboothCameraProps {
   onPhotoCapture: (photoDataUrl: string) => void
@@ -24,9 +25,110 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [selectedOverlay, setSelectedOverlay] = useState("lantern")
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [templatePreviewImage, setTemplatePreviewImage] = useState<HTMLImageElement | null>(null)
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user")
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [orientation, setOrientation] = useState<PhotoOrientation>("horizontal")
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Load templates on mount and refresh periodically
+  useEffect(() => {
+    const loadTemplates = async () => {
+      try {
+        await refreshTemplates()
+        const allTemplates = getTemplates()
+        setTemplates(allTemplates)
+      } catch (error) {
+        console.error("Error loading templates:", error)
+        // Fallback to config templates
+        setTemplates(config.templates)
+      }
+    }
+    
+    // Load immediately
+    loadTemplates()
+    
+    // Refresh templates every 30 seconds to pick up new uploads
+    const interval = setInterval(() => {
+      loadTemplates()
+    }, 30000)
+    
+    return () => clearInterval(interval)
+  }, [])
+
+  // Load template preview image when selected template changes
+  useEffect(() => {
+    if (selectedTemplate) {
+      const template = templates.find(t => t.id === selectedTemplate)
+      if (template) {
+        const img = new Image()
+        img.crossOrigin = "anonymous"
+        img.onload = () => {
+          setTemplatePreviewImage(img)
+        }
+        img.onerror = () => {
+          console.error("Failed to load template preview:", template.image)
+          setTemplatePreviewImage(null)
+        }
+        img.src = template.image
+      } else {
+        setTemplatePreviewImage(null)
+      }
+    } else {
+      setTemplatePreviewImage(null)
+    }
+  }, [selectedTemplate, templates])
+
+  // Draw template preview on video
+  useEffect(() => {
+    if (!videoRef.current || !previewCanvasRef.current || !templatePreviewImage) {
+      // Clear canvas if no template
+      if (previewCanvasRef.current) {
+        const ctx = previewCanvasRef.current.getContext("2d")
+        if (ctx) {
+          ctx.clearRect(0, 0, previewCanvasRef.current.width, previewCanvasRef.current.height)
+        }
+      }
+      return
+    }
+
+    const video = videoRef.current
+    const canvas = previewCanvasRef.current
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    let animationFrameId: number
+
+    const updatePreview = () => {
+      if (!video.videoWidth || !video.videoHeight) {
+        animationFrameId = requestAnimationFrame(updatePreview)
+        return
+      }
+
+      // Match canvas size to video display size
+      const rect = video.getBoundingClientRect()
+      if (canvas.width !== rect.width || canvas.height !== rect.height) {
+        canvas.width = rect.width
+        canvas.height = rect.height
+      }
+
+      // Clear and draw template overlay
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(templatePreviewImage, 0, 0, canvas.width, canvas.height)
+
+      animationFrameId = requestAnimationFrame(updatePreview)
+    }
+
+    updatePreview()
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId)
+      }
+    }
+  }, [templatePreviewImage])
 
   useEffect(() => {
     handleStartCamera()
@@ -56,7 +158,7 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
     stopCamera(stream)
   }
 
-  const capturePhoto = () => {
+  const capturePhoto = async () => {
     if (!videoRef.current || !canvasRef.current) return
 
     const video = videoRef.current
@@ -100,6 +202,18 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
     // Apply overlay if selected
     if (selectedOverlay !== "none") {
       applyOverlayToCanvas(canvas, selectedOverlay)
+    }
+
+    // Apply template if selected (after overlay)
+    if (selectedTemplate) {
+      const template = templates.find(t => t.id === selectedTemplate)
+      if (template) {
+        try {
+          await applyTemplateToCanvas(canvas, template.image)
+        } catch (error) {
+          console.error("Error applying template:", error)
+        }
+      }
     }
 
     // Get final image
@@ -157,6 +271,14 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
             ) : (
               <div className="relative w-full h-full">
                 <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                {/* Template Preview Overlay */}
+                {templatePreviewImage && (
+                  <canvas
+                    ref={previewCanvasRef}
+                    className="absolute inset-0 w-full h-full pointer-events-none"
+                    style={{ mixBlendMode: "normal" }}
+                  />
+                )}
                 {/* Camera Circle Button Overlay */}
                 <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
                   <button
@@ -220,6 +342,38 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
                 >
                   <span className="mr-2">{overlay.emoji}</span>
                   {overlay.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Template Selector */}
+        {!capturedImage && templates.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <ImageIcon className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Select Template</span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              <Button
+                variant={selectedTemplate === null ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedTemplate(null)}
+                className="flex-shrink-0"
+              >
+                None
+              </Button>
+              {templates.map((template) => (
+                <Button
+                  key={template.id}
+                  variant={selectedTemplate === template.id ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedTemplate(template.id)}
+                  className="flex-shrink-0"
+                  title={template.description}
+                >
+                  {template.name}
                 </Button>
               ))}
             </div>
