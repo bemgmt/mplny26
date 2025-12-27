@@ -212,20 +212,31 @@ export default function AdminPage() {
         const uploadFormData = new FormData()
         uploadFormData.append("overlay", overlayFile)
 
-        const uploadResponse = await fetch("/api/admin/overlays/upload", {
-          method: "POST",
-          body: uploadFormData,
-        })
+        try {
+          const uploadResponse = await fetch("/api/admin/overlays/upload", {
+            method: "POST",
+            body: uploadFormData,
+          })
 
-        const uploadData = await uploadResponse.json()
-        console.log("Upload response:", uploadData)
-        
-        if (uploadData.success && uploadData.file) {
-          imageUrl = uploadData.file
-          console.log("New image uploaded successfully:", imageUrl)
-        } else {
-          console.error("Upload failed:", uploadData)
-          throw new Error(uploadData.error || "Failed to upload file")
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text()
+            console.error("Upload HTTP error:", uploadResponse.status, errorText)
+            throw new Error(`Upload failed with status ${uploadResponse.status}: ${errorText}`)
+          }
+
+          const uploadData = await uploadResponse.json()
+          console.log("Upload response:", uploadData)
+          
+          if (uploadData.success && uploadData.file) {
+            imageUrl = uploadData.file
+            console.log("✅ New image uploaded successfully:", imageUrl)
+          } else {
+            console.error("❌ Upload failed - response:", uploadData)
+            throw new Error(uploadData.error || "Failed to upload file - no URL returned")
+          }
+        } catch (uploadError) {
+          console.error("❌ Upload exception:", uploadError)
+          throw new Error(`Failed to upload file: ${uploadError instanceof Error ? uploadError.message : "Unknown error"}`)
         }
       } else if (newOverlay.type === "image") {
         // If editing and no new file uploaded, keep existing imageUrl
