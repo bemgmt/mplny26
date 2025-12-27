@@ -194,8 +194,21 @@ export default function AdminPage() {
     try {
       let imageUrl: string | null = null
 
+      console.log("=== SAVE OVERLAY DEBUG ===")
+      console.log("Overlay type:", newOverlay.type)
+      console.log("Has overlayFile:", !!overlayFile)
+      console.log("overlayFile details:", overlayFile ? {
+        name: overlayFile.name,
+        size: overlayFile.size,
+        type: overlayFile.type,
+      } : null)
+      console.log("Is editing:", !!editingOverlay)
+      console.log("Editing overlay imageUrl:", editingOverlay?.imageUrl)
+      console.log("newOverlay.imageUrl:", newOverlay.imageUrl)
+
       // Upload file to Vercel Blob if provided (this takes priority)
       if (overlayFile && newOverlay.type === "image") {
+        console.log("Uploading file to Blob...")
         const uploadFormData = new FormData()
         uploadFormData.append("overlay", overlayFile)
 
@@ -205,17 +218,26 @@ export default function AdminPage() {
         })
 
         const uploadData = await uploadResponse.json()
+        console.log("Upload response:", uploadData)
+        
         if (uploadData.success && uploadData.file) {
           imageUrl = uploadData.file
-          console.log("New image uploaded:", imageUrl)
+          console.log("New image uploaded successfully:", imageUrl)
         } else {
+          console.error("Upload failed:", uploadData)
           throw new Error(uploadData.error || "Failed to upload file")
         }
       } else if (newOverlay.type === "image") {
         // If editing and no new file uploaded, keep existing imageUrl
         imageUrl = editingOverlay?.imageUrl || newOverlay.imageUrl || null
         console.log("Using existing imageUrl:", imageUrl)
+        if (!imageUrl) {
+          console.warn("WARNING: Image overlay has no imageUrl!")
+        }
       }
+      
+      console.log("Final imageUrl before save:", imageUrl)
+      console.log("=== END SAVE OVERLAY DEBUG ===")
 
       // Save overlay to server (globally accessible)
       const overlayData = {
