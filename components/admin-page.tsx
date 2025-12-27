@@ -628,9 +628,17 @@ export default function AdminPage() {
                       <div className="aspect-video bg-muted flex items-center justify-center overflow-hidden">
                         {overlay.type === "image" && overlay.imageUrl ? (
                           <img
-                            src={overlay.imageUrl}
+                            src={`${overlay.imageUrl}?t=${overlay.id}`}
                             alt={overlay.name}
                             className="w-full h-full object-contain"
+                            key={`${overlay.id}-${overlay.imageUrl}`}
+                            onError={(e) => {
+                              console.error("Failed to load overlay image:", {
+                                overlayId: overlay.id,
+                                overlayName: overlay.name,
+                                imageUrl: overlay.imageUrl,
+                              })
+                            }}
                           />
                         ) : overlay.type === "emoji" && overlay.emoji ? (
                           <div className="text-center p-4">

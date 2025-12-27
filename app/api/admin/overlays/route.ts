@@ -33,6 +33,19 @@ async function getOverlaysFromDB(): Promise<any[]> {
       FROM overlays
       ORDER BY created_at DESC
     `
+    
+    // Debug: Log what we're returning from database
+    console.log("=== GET OVERLAYS FROM DB ===")
+    console.log("Total overlays:", result.rows?.length || 0)
+    result.rows?.forEach((overlay: any) => {
+      console.log(`Overlay ${overlay.id}:`, {
+        name: overlay.name,
+        type: overlay.type,
+        imageUrl: overlay.imageUrl,
+      })
+    })
+    console.log("=== END GET OVERLAYS FROM DB ===")
+    
     return result.rows || []
   } catch (error) {
     console.error("Error reading overlays from database:", error)

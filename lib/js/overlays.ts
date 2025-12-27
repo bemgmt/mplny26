@@ -22,16 +22,27 @@ const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
  */
 async function fetchServerOverlays(): Promise<Overlay[]> {
   try {
-    const response = await fetch("/api/admin/overlays")
+    // Add cache-busting query parameter to ensure fresh data
+    const response = await fetch(`/api/admin/overlays?t=${Date.now()}`)
     const data = await response.json()
     if (data.success && data.overlays) {
-      return data.overlays.map((o: any) => ({
+      const overlays = data.overlays.map((o: any) => ({
         id: o.id,
         name: o.name,
         emoji: o.emoji,
         imageUrl: o.imageUrl,
         type: o.type || "emoji",
       }))
+      
+      // Debug: Log what we fetched
+      console.log("Fetched overlays from server:", overlays.map(o => ({
+        id: o.id,
+        name: o.name,
+        type: o.type,
+        imageUrl: o.imageUrl,
+      })))
+      
+      return overlays
     }
     return []
   } catch (error) {

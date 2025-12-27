@@ -60,16 +60,27 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
   useEffect(() => {
     const overlay = overlays.find(o => o.id === selectedOverlay)
     if (overlay && overlay.type === "image" && overlay.imageUrl) {
+      console.log("Loading overlay preview:", {
+        overlayId: overlay.id,
+        overlayName: overlay.name,
+        imageUrl: overlay.imageUrl,
+      })
       const img = new Image()
       img.crossOrigin = "anonymous"
       img.onload = () => {
+        console.log("Overlay preview loaded successfully:", overlay.imageUrl)
         setOverlayPreviewImage(img)
       }
       img.onerror = () => {
-        console.error("Failed to load overlay preview:", overlay.imageUrl)
+        console.error("Failed to load overlay preview:", {
+          overlayId: overlay.id,
+          overlayName: overlay.name,
+          imageUrl: overlay.imageUrl,
+        })
         setOverlayPreviewImage(null)
       }
-      img.src = overlay.imageUrl
+      // Add cache-busting query parameter
+      img.src = `${overlay.imageUrl}?t=${overlay.id}`
     } else {
       setOverlayPreviewImage(null)
     }
