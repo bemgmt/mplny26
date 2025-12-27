@@ -188,6 +188,12 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
     const video = videoRef.current
     const canvas = canvasRef.current
     
+    // Ensure video is ready
+    if (!video.videoWidth || !video.videoHeight) {
+      console.error("Video not ready")
+      return
+    }
+    
     // Set canvas dimensions based on orientation
     if (orientation === "vertical") {
       // Portrait: height > width
@@ -201,6 +207,9 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
 
     const ctx = canvas.getContext("2d")
     if (!ctx) return
+
+    // Clear canvas first
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
 
     // Draw video frame, centered and scaled
     const sourceAspect = video.videoWidth / video.videoHeight
