@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { put } from "@vercel/blob"
+import { createHash } from "crypto"
 
 /**
  * POST /api/admin/overlays/upload
@@ -60,17 +61,60 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      // Calculate file hash for verification
+      const fileBuffer = await overlayFile.arrayBuffer()
+      const fileHash = createHash("md5").update(Buffer.from(fileBuffer)).digest("hex")
+      const fileSize = overlayFile.size
+      const firstBytes = Buffer.from(fileBuffer.slice(0, 20)).toString("hex")
+
       const overlayExtension = overlayFile.name.split(".").pop()?.toLowerCase() || "png"
       const overlayFileName = `overlays/overlay-${timestamp}-${randomSuffix}.${overlayExtension}`
+      
+      // Log what we're about to upload
+      console.log("=== BLOB UPLOAD DEBUG ===")
+      console.log("File received:", {
+        name: overlayFile.name,
+        type: overlayFile.type,
+        size: fileSize,
+        lastModified: overlayFile.lastModified,
+        hash: fileHash,
+        firstBytes: firstBytes,
+      })
+      console.log("Generated filename:", overlayFileName)
+      console.log("Timestamp:", timestamp)
+      console.log("Random suffix:", randomSuffix)
+      console.log("BLOB_READ_WRITE_TOKEN exists:", !!process.env.BLOB_READ_WRITE_TOKEN)
       
       const blob = await put(overlayFileName, overlayFile, {
         access: "public",
       })
 
+      // Log what Blob returned
+      console.log("Blob response:", {
+        url: blob.url,
+        pathname: blob.pathname,
+        size: blob.size,
+        uploadedAt: blob.uploadedAt,
+        contentType: blob.contentType,
+        downloadUrl: blob.downloadUrl,
+        fullResponse: JSON.stringify(blob, null, 2),
+      })
+      console.log("=== END BLOB UPLOAD DEBUG ===")
+
       return NextResponse.json({
         success: true,
         file: blob.url,
         message: "File uploaded successfully",
+        debug: {
+          filename: overlayFileName,
+          blobUrl: blob.url,
+          blobPathname: blob.pathname,
+          fileSize: fileSize,
+          blobSize: blob.size,
+          fileHash: fileHash,
+          timestamp: timestamp,
+          randomSuffix: randomSuffix,
+        }
       })
     } catch (fileError) {
       console.error("Error uploading overlay file:", fileError)

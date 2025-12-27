@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { put } from "@vercel/blob"
 import { sql } from "@vercel/postgres"
+import { createHash } from "crypto"
 
 /**
  * POST /api/admin/overlays/update-image
@@ -61,15 +62,55 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Calculate file hash for verification
+    const fileBuffer = await overlayFile.arrayBuffer()
+    const fileHash = createHash("md5").update(Buffer.from(fileBuffer)).digest("hex")
+    const fileSize = overlayFile.size
+    const firstBytes = Buffer.from(fileBuffer.slice(0, 20)).toString("hex")
+
     // Upload new image to Vercel Blob
     const timestamp = Date.now()
     const randomSuffix = Math.random().toString(36).substring(2, 9)
     const overlayExtension = overlayFile.name.split(".").pop()?.toLowerCase() || "png"
     const overlayFileName = `overlays/overlay-${timestamp}-${randomSuffix}.${overlayExtension}`
     
+    // Log what we're about to upload
+    console.log("=== BLOB UPDATE IMAGE DEBUG ===")
+    console.log("Overlay ID:", overlayId)
+    console.log("File received:", {
+      name: overlayFile.name,
+      type: overlayFile.type,
+      size: fileSize,
+      lastModified: overlayFile.lastModified,
+      hash: fileHash,
+      firstBytes: firstBytes,
+    })
+    console.log("Generated filename:", overlayFileName)
+    console.log("Timestamp:", timestamp)
+    console.log("Random suffix:", randomSuffix)
+    console.log("BLOB_READ_WRITE_TOKEN exists:", !!process.env.BLOB_READ_WRITE_TOKEN)
+    
     const blob = await put(overlayFileName, overlayFile, {
       access: "public",
     })
+
+    // Log what Blob returned
+    console.log("Blob response:", {
+      url: blob.url,
+      pathname: blob.pathname,
+      size: blob.size,
+      uploadedAt: blob.uploadedAt,
+      contentType: blob.contentType,
+      downloadUrl: blob.downloadUrl,
+      fullResponse: JSON.stringify(blob, null, 2),
+    })
+
+    // Check current database value before update
+    const currentOverlay = await sql`
+      SELECT image_url FROM overlays WHERE id = ${overlayId}
+    `
+    console.log("Current image_url in database:", currentOverlay.rows[0]?.image_url)
+    console.log("New image_url to save:", blob.url)
 
     // Update overlay in database
     const now = Date.now()
@@ -80,10 +121,30 @@ export async function POST(request: NextRequest) {
       WHERE id = ${overlayId}
     `
 
+    // Verify the update
+    const updatedOverlay = await sql`
+      SELECT image_url FROM overlays WHERE id = ${overlayId}
+    `
+    console.log("Verified image_url in database after update:", updatedOverlay.rows[0]?.image_url)
+    console.log("=== END BLOB UPDATE IMAGE DEBUG ===")
+
     return NextResponse.json({
       success: true,
       imageUrl: blob.url,
       message: "Overlay image updated successfully",
+      debug: {
+        overlayId,
+        filename: overlayFileName,
+        blobUrl: blob.url,
+        blobPathname: blob.pathname,
+        fileSize: fileSize,
+        blobSize: blob.size,
+        fileHash: fileHash,
+        timestamp: timestamp,
+        randomSuffix: randomSuffix,
+        previousImageUrl: currentOverlay.rows[0]?.image_url,
+        newImageUrl: updatedOverlay.rows[0]?.image_url,
+      }
     })
   } catch (error) {
     console.error("Error updating overlay image:", error)
