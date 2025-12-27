@@ -100,23 +100,35 @@ async function saveOverlayToDB(overlay: any): Promise<void> {
       SELECT id FROM overlays WHERE id = ${overlay.id}
     `
     
+    // Ensure imageUrlValue is explicitly set (not undefined)
+    const finalImageUrl = imageUrlValue !== undefined && imageUrlValue !== null ? imageUrlValue : null
+    
+    console.log("Final imageUrl value for SQL:", finalImageUrl)
+    console.log("Final imageUrl type:", typeof finalImageUrl)
+    console.log("Final imageUrl is null?", finalImageUrl === null)
+    console.log("Final imageUrl is undefined?", finalImageUrl === undefined)
+    
     if (existing.rows.length > 0) {
-      // Update existing overlay
+      // Update existing overlay - use explicit null for image_url if needed
+      console.log("Updating existing overlay:", overlay.id)
       await sql`
         UPDATE overlays
         SET name = ${overlay.name},
             emoji = ${overlay.emoji || null},
-            image_url = ${imageUrlValue},
+            image_url = ${finalImageUrl},
             type = ${overlay.type},
             updated_at = ${overlay.updatedAt}
         WHERE id = ${overlay.id}
       `
+      console.log("UPDATE executed for overlay:", overlay.id)
     } else {
-      // Insert new overlay
+      // Insert new overlay - use explicit null for image_url if needed
+      console.log("Inserting new overlay:", overlay.id)
       await sql`
         INSERT INTO overlays (id, name, emoji, image_url, type, created_at, updated_at)
-        VALUES (${overlay.id}, ${overlay.name}, ${overlay.emoji || null}, ${imageUrlValue}, ${overlay.type}, ${overlay.createdAt}, ${overlay.updatedAt})
+        VALUES (${overlay.id}, ${overlay.name}, ${overlay.emoji || null}, ${finalImageUrl}, ${overlay.type}, ${overlay.createdAt}, ${overlay.updatedAt})
       `
+      console.log("INSERT executed for overlay:", overlay.id)
     }
     
     // #region agent log
@@ -147,7 +159,14 @@ async function saveOverlayToDB(overlay: any): Promise<void> {
     // CRITICAL: Verify imageUrl was saved correctly for image-type overlays
     if (overlay.type === "image") {
       const savedImageUrl = verifyResult.rows[0]?.image_url
-      const expectedImageUrl = imageUrlValue
+      const expectedImageUrl = finalImageUrl
+      
+      console.log("=== VERIFICATION CHECK ===")
+      console.log("Expected imageUrl:", expectedImageUrl)
+      console.log("Saved image_url from DB:", savedImageUrl)
+      console.log("Are they equal?", savedImageUrl === expectedImageUrl)
+      console.log("Expected type:", typeof expectedImageUrl)
+      console.log("Saved type:", typeof savedImageUrl)
       
       if (!savedImageUrl || savedImageUrl !== expectedImageUrl) {
         const errorMsg = `Failed to save imageUrl: expected "${expectedImageUrl}", but database has "${savedImageUrl}"`
@@ -166,6 +185,7 @@ async function saveOverlayToDB(overlay: any): Promise<void> {
       }
       
       console.log("✅ ImageUrl save verified successfully:", savedImageUrl)
+      console.log("=== END VERIFICATION CHECK ===")
     }
     
     console.log("=== END SAVE OVERLAY TO DB DEBUG ===")
