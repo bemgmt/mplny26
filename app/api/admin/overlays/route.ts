@@ -123,7 +123,7 @@ async function saveOverlayToDB(overlay: any): Promise<void> {
     fetch('http://127.0.0.1:7242/ingest/fdfee33a-97a5-4e20-9e3b-92eddfb0abd6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:95',message:'After SQL INSERT',data:{overlayId:overlay.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
     // #endregion
     
-    // Verify what was actually saved
+    // Verify what was actually saved - CRITICAL: ensure imageUrl persisted correctly
     const verifyResult = await sql`
       SELECT id, name, image_url, type
       FROM overlays
@@ -143,6 +143,31 @@ async function saveOverlayToDB(overlay: any): Promise<void> {
         type: verifyResult.rows[0].type,
       } : null,
     })
+    
+    // CRITICAL: Verify imageUrl was saved correctly for image-type overlays
+    if (overlay.type === "image") {
+      const savedImageUrl = verifyResult.rows[0]?.image_url
+      const expectedImageUrl = imageUrlValue
+      
+      if (!savedImageUrl || savedImageUrl !== expectedImageUrl) {
+        const errorMsg = `Failed to save imageUrl: expected "${expectedImageUrl}", but database has "${savedImageUrl}"`
+        console.error("=== IMAGE URL SAVE VERIFICATION FAILED ===")
+        console.error(errorMsg)
+        console.error("Overlay ID:", overlay.id)
+        console.error("Expected imageUrl:", expectedImageUrl)
+        console.error("Saved image_url:", savedImageUrl)
+        console.error("=== END VERIFICATION FAILED ===")
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/fdfee33a-97a5-4e20-9e3b-92eddfb0abd6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:120',message:'ImageUrl save verification failed',data:{overlayId:overlay.id,expectedImageUrl,savedImageUrl,error:errorMsg},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
+        
+        throw new Error(errorMsg)
+      }
+      
+      console.log("✅ ImageUrl save verified successfully:", savedImageUrl)
+    }
+    
     console.log("=== END SAVE OVERLAY TO DB DEBUG ===")
     
     console.log("Overlay saved successfully to database")
