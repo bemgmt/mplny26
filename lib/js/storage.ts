@@ -28,6 +28,7 @@ export function getStoredPhotos(): StoredPhoto[] {
 
 /**
  * Save a photo to storage
+ * Automatically removes oldest photos if limit is exceeded
  */
 export function savePhoto(dataUrl: string): StoredPhoto {
   const photo: StoredPhoto = {
@@ -38,7 +39,46 @@ export function savePhoto(dataUrl: string): StoredPhoto {
   
   const photos = getStoredPhotos()
   photos.unshift(photo) // Add to beginning
-  localStorage.setItem(config.storage.photosKey, JSON.stringify(photos))
+  
+  // Limit the number of photos stored (keep only the most recent)
+  const maxPhotos = config.storage.maxPhotos || 50
+  if (photos.length > maxPhotos) {
+    // Remove oldest photos (keep the most recent maxPhotos)
+    photos.splice(maxPhotos)
+    console.log(`Photo limit reached (${maxPhotos}). Removed ${photos.length - maxPhotos} oldest photos.`)
+  }
+  
+  try {
+    localStorage.setItem(config.storage.photosKey, JSON.stringify(photos))
+  } catch (error) {
+    // Handle quota exceeded error
+    if (error instanceof DOMException && error.name === "QuotaExceededError") {
+      console.warn("localStorage quota exceeded. Attempting to free space by removing older photos...")
+      
+      // Try to remove older photos and retry
+      // Keep only the most recent 25 photos
+      const reducedPhotos = photos.slice(0, Math.min(25, photos.length))
+      try {
+        localStorage.setItem(config.storage.photosKey, JSON.stringify(reducedPhotos))
+        console.log("Successfully saved photo after reducing storage.")
+        return photo
+      } catch (retryError) {
+        console.error("Still unable to save photo after reducing storage. Clearing all photos and saving only the new one.", retryError)
+        // Last resort: clear all and save only the new photo
+        try {
+          localStorage.setItem(config.storage.photosKey, JSON.stringify([photo]))
+          console.log("Saved only the new photo after clearing storage.")
+        } catch (finalError) {
+          console.error("Failed to save photo to localStorage:", finalError)
+          // Photo is still returned, but not saved to localStorage
+          alert("Unable to save photo to storage. The photo may not persist after page reload.")
+        }
+      }
+    } else {
+      console.error("Error saving photo to localStorage:", error)
+      throw error
+    }
+  }
   
   return photo
 }
