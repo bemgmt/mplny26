@@ -85,7 +85,15 @@ export async function applyOverlayToCanvas(
   console.log("Overlay imageUrl:", overlayToUse.imageUrl)
   console.log("Has imageUrl?", !!overlayToUse.imageUrl)
 
-  if (overlayToUse.type === "image" && overlayToUse.imageUrl) {
+  // Validate image overlay has imageUrl
+  if (overlayToUse.type === "image") {
+    if (!overlayToUse.imageUrl) {
+      console.error("Image overlay selected but imageUrl is missing:", overlayToUse)
+      // Fallback to emoji overlay
+      drawOverlay(ctx, canvas.width, canvas.height, overlayId)
+      console.log("=== END APPLY OVERLAY DEBUG (MISSING IMAGE URL) ===")
+      return
+    }
     // Image-based overlay - composite the image over the photo
     // The photo is already drawn on the canvas, so we just draw the overlay on top
     console.log("Applying image overlay to canvas:", {

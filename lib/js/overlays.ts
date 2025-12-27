@@ -43,6 +43,11 @@ async function fetchServerOverlays(): Promise<Overlay[]> {
           type: o.type || "emoji",
         }
         
+        // Validate: if type is "image" but no imageUrl, log warning and convert to emoji type
+        if (overlay.type === "image" && !overlay.imageUrl) {
+          console.warn(`Overlay ${overlay.id} is type "image" but has no imageUrl. This overlay may not work correctly.`)
+        }
+        
         console.log(`Mapped overlay ${overlay.id}:`, {
           name: overlay.name,
           type: overlay.type,
