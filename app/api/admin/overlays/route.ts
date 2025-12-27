@@ -47,6 +47,14 @@ async function getOverlaysFromDB(): Promise<any[]> {
 async function saveOverlayToDB(overlay: any): Promise<void> {
   try {
     await ensureTableExists()
+    
+    console.log("Saving overlay to database:", {
+      id: overlay.id,
+      name: overlay.name,
+      imageUrl: overlay.imageUrl,
+      type: overlay.type,
+    })
+    
     await sql`
       INSERT INTO overlays (id, name, emoji, image_url, type, created_at, updated_at)
       VALUES (${overlay.id}, ${overlay.name}, ${overlay.emoji || null}, ${overlay.imageUrl || null}, ${overlay.type}, ${overlay.createdAt}, ${overlay.updatedAt})
@@ -57,6 +65,8 @@ async function saveOverlayToDB(overlay: any): Promise<void> {
         type = EXCLUDED.type,
         updated_at = EXCLUDED.updated_at
     `
+    
+    console.log("Overlay saved successfully to database")
   } catch (error) {
     console.error("Error saving overlay to database:", error)
     throw error

@@ -192,10 +192,9 @@ export default function AdminPage() {
 
     setIsUploading(true)
     try {
-      // If editing and no new file uploaded, keep existing imageUrl
-      let imageUrl = editingOverlay?.imageUrl || newOverlay.imageUrl
+      let imageUrl: string | null = null
 
-      // Upload file to Vercel Blob if provided
+      // Upload file to Vercel Blob if provided (this takes priority)
       if (overlayFile && newOverlay.type === "image") {
         const uploadFormData = new FormData()
         uploadFormData.append("overlay", overlayFile)
@@ -208,22 +207,36 @@ export default function AdminPage() {
         const uploadData = await uploadResponse.json()
         if (uploadData.success && uploadData.file) {
           imageUrl = uploadData.file
+          console.log("New image uploaded:", imageUrl)
         } else {
           throw new Error(uploadData.error || "Failed to upload file")
         }
+      } else if (newOverlay.type === "image") {
+        // If editing and no new file uploaded, keep existing imageUrl
+        imageUrl = editingOverlay?.imageUrl || newOverlay.imageUrl || null
+        console.log("Using existing imageUrl:", imageUrl)
       }
 
       // Save overlay to server (globally accessible)
+      const overlayData = {
+        id: editingOverlay?.id, // Include ID if editing
+        name: newOverlay.name,
+        emoji: newOverlay.type === "emoji" ? newOverlay.emoji : null,
+        imageUrl: newOverlay.type === "image" ? imageUrl : null,
+        type: newOverlay.type,
+      }
+      
+      console.log("Saving overlay to database:", {
+        id: overlayData.id,
+        name: overlayData.name,
+        imageUrl: overlayData.imageUrl,
+        type: overlayData.type,
+      })
+
       const response = await fetch("/api/admin/overlays", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: editingOverlay?.id, // Include ID if editing
-          name: newOverlay.name,
-          emoji: newOverlay.type === "emoji" ? newOverlay.emoji : null,
-          imageUrl: newOverlay.type === "image" ? imageUrl : null,
-          type: newOverlay.type,
-        }),
+        body: JSON.stringify(overlayData),
       })
 
       const data = await response.json()
