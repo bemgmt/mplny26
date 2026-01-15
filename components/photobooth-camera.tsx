@@ -4,6 +4,8 @@ import { useRef, useState, useEffect } from "react"
 import { Camera, RotateCcw, Download, Sparkles, ArrowLeft, Maximize2, Minimize2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 import { startCamera, stopCamera } from "@/lib/js/camera"
 import { applyOverlayToCanvas } from "@/lib/js/photobooth"
 import { downloadImage, formatDateForFilename } from "@/lib/js/utils"
@@ -28,7 +30,47 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user")
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [orientation, setOrientation] = useState<PhotoOrientation>("horizontal")
+  const [mirrorFrontCamera, setMirrorFrontCamera] = useState(false)
   const previewCanvasRef = useRef<HTMLCanvasElement>(null)
+  const shouldMirror = mirrorFrontCamera && facingMode === "user"
+
+  const getOrientationFromScreen = (): PhotoOrientation | null => {
+    const screenOrientation = window.screen?.orientation?.type
+    if (screenOrientation?.includes("portrait")) return "vertical"
+    if (screenOrientation?.includes("landscape")) return "horizontal"
+    const legacyOrientation = (window as Window & { orientation?: number }).orientation
+    if (typeof legacyOrientation === "number") {
+      return Math.abs(legacyOrientation) === 90 ? "horizontal" : "vertical"
+    }
+    return null
+  }
+
+  const getOrientationFromVideo = (): PhotoOrientation | null => {
+    const video = videoRef.current
+    if (video?.videoWidth && video?.videoHeight) {
+      return video.videoWidth >= video.videoHeight ? "horizontal" : "vertical"
+    }
+
+    const settings = stream?.getVideoTracks?.()?.[0]?.getSettings?.()
+    if (settings?.width && settings?.height) {
+      return settings.width >= settings.height ? "horizontal" : "vertical"
+    }
+
+    return null
+  }
+
+  const updateOrientation = () => {
+    const screenOrientation = getOrientationFromScreen()
+    if (screenOrientation) {
+      setOrientation(screenOrientation)
+      return
+    }
+
+    const fallbackOrientation = getOrientationFromVideo()
+    if (fallbackOrientation) {
+      setOrientation(fallbackOrientation)
+    }
+  }
 
   // Load overlays on mount and refresh periodically
   useEffect(() => {
@@ -143,7 +185,15 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
         drawY = (canvas.height - drawHeight) / 2
       }
       
-      ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight)
+      if (shouldMirror) {
+        ctx.save()
+        ctx.translate(canvas.width, 0)
+        ctx.scale(-1, 1)
+        ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight)
+        ctx.restore()
+      } else {
+        ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight)
+      }
       
       // Then draw overlay on top (compositing)
       ctx.drawImage(overlayPreviewImage, 0, 0, canvas.width, canvas.height)
@@ -158,7 +208,29 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
         cancelAnimationFrame(animationFrameId)
       }
     }
-  }, [overlayPreviewImage])
+  }, [overlayPreviewImage, shouldMirror])
+
+  useEffect(() => {
+    updateOrientation()
+
+    const handleOrientationChange = () => updateOrientation()
+    window.addEventListener("resize", handleOrientationChange)
+
+    if (window.screen?.orientation?.addEventListener) {
+      window.screen.orientation.addEventListener("change", handleOrientationChange)
+    } else {
+      window.addEventListener("orientationchange", handleOrientationChange)
+    }
+
+    return () => {
+      window.removeEventListener("resize", handleOrientationChange)
+      if (window.screen?.orientation?.removeEventListener) {
+        window.screen.orientation.removeEventListener("change", handleOrientationChange)
+      } else {
+        window.removeEventListener("orientationchange", handleOrientationChange)
+      }
+    }
+  }, [stream])
 
   useEffect(() => {
     if (!capturedImage) {
@@ -183,6 +255,10 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
         height: config.camera.idealHeight,
       })
       setStream(mediaStream)
+      if (videoRef.current) {
+        const handleMetadata = () => updateOrientation()
+        videoRef.current.addEventListener("loadedmetadata", handleMetadata, { once: true })
+      }
     } catch (err) {
       console.error("Error accessing camera:", err)
       setCameraError(err instanceof Error ? err.message : "Unable to access camera. Please check permissions.")
@@ -242,7 +318,15 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
     }
     
     // Draw video frame to canvas (this is the photo)
-    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
+    if (shouldMirror) {
+      ctx.save()
+      ctx.translate(canvas.width, 0)
+      ctx.scale(-1, 1)
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
+      ctx.restore()
+    } else {
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
+    }
 
     // Apply overlay if selected (this will composite on top of the photo)
     if (selectedOverlay !== "none") {
@@ -323,7 +407,14 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
               <img src={capturedImage || "/placeholder.svg"} alt="Captured" className="w-full h-full object-cover" />
             ) : (
               <div className="relative w-full h-full">
-                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                  style={{ transform: shouldMirror ? "scaleX(-1)" : "none" }}
+                />
                 {/* Overlay Preview (for image-based overlays) */}
                 {overlayPreviewImage && (
                   <canvas
@@ -348,32 +439,45 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
           </div>
         </Card>
 
-        {/* Orientation Toggle */}
+        {/* Orientation Indicator */}
         {!capturedImage && (
           <div className="mb-4">
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-sm font-medium">Photo Orientation</span>
+              <span className="text-sm font-medium">Photo Orientation (Auto)</span>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant={orientation === "horizontal" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setOrientation("horizontal")}
-                className="flex-1"
-              >
-                <Maximize2 className="mr-2 h-4 w-4" />
-                Horizontal
-              </Button>
-              <Button
-                variant={orientation === "vertical" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setOrientation("vertical")}
-                className="flex-1"
-              >
-                <Minimize2 className="mr-2 h-4 w-4" />
-                Vertical
-              </Button>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {orientation === "horizontal" ? (
+                <>
+                  <Maximize2 className="h-4 w-4" />
+                  <span>Horizontal</span>
+                </>
+              ) : (
+                <>
+                  <Minimize2 className="h-4 w-4" />
+                  <span>Vertical</span>
+                </>
+              )}
             </div>
+          </div>
+        )}
+
+        {/* Mirror Toggle */}
+        {!capturedImage && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card px-4 py-3">
+              <Label htmlFor="mirror-front-camera" className="text-sm font-medium">
+                Mirror front camera
+              </Label>
+              <Switch
+                id="mirror-front-camera"
+                checked={mirrorFrontCamera}
+                onCheckedChange={setMirrorFrontCamera}
+                disabled={facingMode !== "user"}
+              />
+            </div>
+            {facingMode !== "user" && (
+              <p className="mt-2 text-xs text-muted-foreground">Switch to the front camera to enable mirror view.</p>
+            )}
           </div>
         )}
 
