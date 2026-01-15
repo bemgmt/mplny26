@@ -16,6 +16,7 @@ export interface Overlay {
 let serverOverlaysCache: Overlay[] | null = null
 let lastFetchTime = 0
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+const hiddenOverlayNames = new Set(["mpcc lny vertical", "mpcc lny default"])
 
 /**
  * Fetch overlays from server
@@ -105,8 +106,11 @@ export async function getOverlaysAsync(): Promise<Overlay[]> {
   const uniqueOverlays = allOverlays.filter((overlay, index, self) =>
     index === self.findIndex((o) => o.id === overlay.id)
   )
+  const visibleOverlays = uniqueOverlays.filter(
+    overlay => !hiddenOverlayNames.has(overlay.name?.toLowerCase() || "")
+  )
   
-  return uniqueOverlays
+  return visibleOverlays
 }
 
 /**
@@ -133,8 +137,11 @@ export function getOverlays(): Overlay[] {
   const uniqueOverlays = allOverlays.filter((overlay, index, self) =>
     index === self.findIndex((o) => o.id === overlay.id)
   )
+  const visibleOverlays = uniqueOverlays.filter(
+    overlay => !hiddenOverlayNames.has(overlay.name?.toLowerCase() || "")
+  )
   
-  return uniqueOverlays
+  return visibleOverlays
 }
 
 /**
