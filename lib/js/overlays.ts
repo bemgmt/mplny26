@@ -88,12 +88,16 @@ export async function getOverlaysAsync(): Promise<Overlay[]> {
   }
 
   // Get overlays from config
-  const configOverlays: Overlay[] = config.overlays.map(overlay => ({
-    id: overlay.id,
-    name: overlay.name,
-    emoji: overlay.emoji,
-    type: "emoji" as const,
-  }))
+  const configOverlays: Overlay[] = config.overlays.map(overlay => {
+    const isImage = "type" in overlay && overlay.type === "image"
+    return {
+      id: overlay.id,
+      name: overlay.name,
+      emoji: !isImage && "emoji" in overlay ? overlay.emoji : undefined,
+      imageUrl: isImage && "imageUrl" in overlay ? overlay.imageUrl : undefined,
+      type: isImage ? "image" : "emoji",
+    }
+  })
   
   // Combine: server overlays (newest), then config
   // Remove duplicates by ID
@@ -110,12 +114,16 @@ export async function getOverlaysAsync(): Promise<Overlay[]> {
  */
 export function getOverlays(): Overlay[] {
   // Get overlays from config
-  const configOverlays: Overlay[] = config.overlays.map(overlay => ({
-    id: overlay.id,
-    name: overlay.name,
-    emoji: overlay.emoji,
-    type: "emoji" as const,
-  }))
+  const configOverlays: Overlay[] = config.overlays.map(overlay => {
+    const isImage = "type" in overlay && overlay.type === "image"
+    return {
+      id: overlay.id,
+      name: overlay.name,
+      emoji: !isImage && "emoji" in overlay ? overlay.emoji : undefined,
+      imageUrl: isImage && "imageUrl" in overlay ? overlay.imageUrl : undefined,
+      type: isImage ? "image" : "emoji",
+    }
+  })
   
   // Include server overlays from cache if available
   const serverOverlays = serverOverlaysCache || []

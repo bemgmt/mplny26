@@ -21,6 +21,18 @@ export const config = {
     { id: "dragon", name: "Dragon", emoji: "🐉" },
     { id: "envelope", name: "Red Envelope", emoji: "🧧" },
     { id: "fireworks", name: "Fireworks", emoji: "🎆" },
+    {
+      id: "lny-2026-vertical",
+      name: "LNY 2026 Vertical Frame",
+      type: "image",
+      imageUrl: "/img/overlays/LNY%20PHOTOBOOTH_VERTICAL_V2-02.png",
+    },
+    {
+      id: "lny-2026-horizontal",
+      name: "LNY 2026 Horizontal Frame",
+      type: "image",
+      imageUrl: "/img/overlays/LNY%20PHOTOBOOTH_HORIZONTAL_V2-01.png",
+    },
   ],
   storage: {
     photosKey: "lunar-new-year-photos",

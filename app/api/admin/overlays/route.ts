@@ -223,12 +223,16 @@ export async function GET() {
     const dbOverlays = await getOverlaysFromDB()
     
     // Convert config overlays to new format
-    const configOverlays = config.overlays.map(overlay => ({
-      id: overlay.id,
-      name: overlay.name,
-      emoji: overlay.emoji,
-      type: "emoji" as const,
-    }))
+    const configOverlays = config.overlays.map(overlay => {
+      const isImage = "type" in overlay && overlay.type === "image"
+      return {
+        id: overlay.id,
+        name: overlay.name,
+        emoji: !isImage && "emoji" in overlay ? overlay.emoji : null,
+        imageUrl: isImage && "imageUrl" in overlay ? overlay.imageUrl : null,
+        type: isImage ? "image" : "emoji",
+      }
+    })
     
     // Combine database overlays with config overlays
     // Database overlays take precedence (they can override config overlays)
