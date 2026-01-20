@@ -1,0 +1,538 @@
+"use client"
+
+import { useRef, useState, useEffect } from "react"
+import { Camera, RotateCcw, Download, Sparkles, ArrowLeft, Maximize2, Minimize2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { startCamera, stopCamera } from "@/lib/js/camera"
+import { applyOverlayToCanvas } from "@/lib/js/photobooth"
+import { downloadImage, formatDateForFilename } from "@/lib/js/utils"
+import { getOverlays, getOverlaysAsync, refreshOverlays, Overlay } from "@/lib/js/overlays"
+import { config } from "@/lib/js/config"
+
+interface PhotoboothCameraProps {
+  onPhotoCapture: (photoDataUrl: string) => void
+  onBack: () => void
+}
+
+type PhotoOrientation = "horizontal" | "vertical"
+
+export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothCameraProps) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [stream, setStream] = useState<MediaStream | null>(null)
+  const [capturedImage, setCapturedImage] = useState<string | null>(null)
+  const [selectedOverlay, setSelectedOverlay] = useState("none")
+  const [overlays, setOverlays] = useState<Overlay[]>([])
+  const [overlayPreviewImage, setOverlayPreviewImage] = useState<HTMLImageElement | null>(null)
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("user")
+  const [cameraError, setCameraError] = useState<string | null>(null)
+  const [orientation, setOrientation] = useState<PhotoOrientation>("horizontal")
+  const [mirrorFrontCamera, setMirrorFrontCamera] = useState(false)
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null)
+  const shouldMirror = mirrorFrontCamera && facingMode === "user"
+
+  const getOrientationFromScreen = (): PhotoOrientation | null => {
+    const screenOrientation = window.screen?.orientation?.type
+    if (screenOrientation?.includes("portrait")) return "vertical"
+    if (screenOrientation?.includes("landscape")) return "horizontal"
+    const legacyOrientation = (window as Window & { orientation?: number }).orientation
+    if (typeof legacyOrientation === "number") {
+      return Math.abs(legacyOrientation) === 90 ? "horizontal" : "vertical"
+    }
+    return null
+  }
+
+  const getOrientationFromVideo = (): PhotoOrientation | null => {
+    const video = videoRef.current
+    if (video?.videoWidth && video?.videoHeight) {
+      return video.videoWidth >= video.videoHeight ? "horizontal" : "vertical"
+    }
+
+    const settings = stream?.getVideoTracks?.()?.[0]?.getSettings?.()
+    if (settings?.width && settings?.height) {
+      return settings.width >= settings.height ? "horizontal" : "vertical"
+    }
+
+    return null
+  }
+
+  const updateOrientation = () => {
+    const screenOrientation = getOrientationFromScreen()
+    if (screenOrientation) {
+      setOrientation(screenOrientation)
+      return
+    }
+
+    const fallbackOrientation = getOrientationFromVideo()
+    if (fallbackOrientation) {
+      setOrientation(fallbackOrientation)
+    }
+  }
+
+  // Load overlays on mount and refresh periodically
+  useEffect(() => {
+    const loadOverlays = async () => {
+      try {
+        await refreshOverlays()
+        const allOverlays = getOverlays()
+        setOverlays(allOverlays)
+      } catch (error) {
+        console.error("Error loading overlays:", error)
+        // Fallback to config overlays
+        const configOverlays = getOverlays()
+        setOverlays(configOverlays)
+      }
+    }
+    
+    // Load immediately
+    loadOverlays()
+    
+    // Refresh overlays every 30 seconds to pick up new uploads
+    const interval = setInterval(() => {
+      loadOverlays()
+    }, 30000)
+    
+    return () => clearInterval(interval)
+  }, [])
+
+  // Load overlay preview image when selected overlay changes
+  useEffect(() => {
+    const overlay = overlays.find(o => o.id === selectedOverlay)
+    if (overlay && overlay.type === "image" && overlay.imageUrl) {
+      console.log("Loading overlay preview:", {
+        overlayId: overlay.id,
+        overlayName: overlay.name,
+        imageUrl: overlay.imageUrl,
+      })
+      const img = new Image()
+      img.crossOrigin = "anonymous"
+      img.onload = () => {
+        console.log("Overlay preview loaded successfully:", overlay.imageUrl)
+        setOverlayPreviewImage(img)
+      }
+      img.onerror = () => {
+        console.error("Failed to load overlay preview:", {
+          overlayId: overlay.id,
+          overlayName: overlay.name,
+          imageUrl: overlay.imageUrl,
+        })
+        setOverlayPreviewImage(null)
+      }
+      // Add cache-busting query parameter
+      img.src = `${overlay.imageUrl}?t=${overlay.id}`
+    } else {
+      setOverlayPreviewImage(null)
+    }
+  }, [selectedOverlay, overlays])
+
+  // Draw overlay preview on video (for image-based overlays)
+  useEffect(() => {
+    if (!videoRef.current || !previewCanvasRef.current || !overlayPreviewImage) {
+      // Clear canvas if no overlay preview
+      if (previewCanvasRef.current) {
+        const ctx = previewCanvasRef.current.getContext("2d")
+        if (ctx) {
+          ctx.clearRect(0, 0, previewCanvasRef.current.width, previewCanvasRef.current.height)
+        }
+      }
+      return
+    }
+
+    const video = videoRef.current
+    const canvas = previewCanvasRef.current
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    let animationFrameId: number
+
+    const updatePreview = () => {
+      if (!video.videoWidth || !video.videoHeight) {
+        animationFrameId = requestAnimationFrame(updatePreview)
+        return
+      }
+
+      // Match canvas size to video display size
+      const rect = video.getBoundingClientRect()
+      if (canvas.width !== rect.width || canvas.height !== rect.height) {
+        canvas.width = rect.width
+        canvas.height = rect.height
+      }
+
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      
+      // Draw video frame first (scaled to fit canvas)
+      const videoAspect = video.videoWidth / video.videoHeight
+      const canvasAspect = canvas.width / canvas.height
+      
+      let drawWidth = canvas.width
+      let drawHeight = canvas.height
+      let drawX = 0
+      let drawY = 0
+      
+      if (videoAspect > canvasAspect) {
+        // Video is wider, fit to height
+        drawHeight = canvas.height
+        drawWidth = canvas.height * videoAspect
+        drawX = (canvas.width - drawWidth) / 2
+      } else {
+        // Video is taller, fit to width
+        drawWidth = canvas.width
+        drawHeight = canvas.width / videoAspect
+        drawY = (canvas.height - drawHeight) / 2
+      }
+      
+      if (shouldMirror) {
+        ctx.save()
+        ctx.translate(canvas.width, 0)
+        ctx.scale(-1, 1)
+        ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight)
+        ctx.restore()
+      } else {
+        ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight)
+      }
+      
+      // Then draw overlay on top (compositing)
+      ctx.drawImage(overlayPreviewImage, 0, 0, canvas.width, canvas.height)
+
+      animationFrameId = requestAnimationFrame(updatePreview)
+    }
+
+    updatePreview()
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId)
+      }
+    }
+  }, [overlayPreviewImage, shouldMirror])
+
+  useEffect(() => {
+    updateOrientation()
+
+    const handleOrientationChange = () => updateOrientation()
+    window.addEventListener("resize", handleOrientationChange)
+
+    if (window.screen?.orientation?.addEventListener) {
+      window.screen.orientation.addEventListener("change", handleOrientationChange)
+    } else {
+      window.addEventListener("orientationchange", handleOrientationChange)
+    }
+
+    return () => {
+      window.removeEventListener("resize", handleOrientationChange)
+      if (window.screen?.orientation?.removeEventListener) {
+        window.screen.orientation.removeEventListener("change", handleOrientationChange)
+      } else {
+        window.removeEventListener("orientationchange", handleOrientationChange)
+      }
+    }
+  }, [stream])
+
+  useEffect(() => {
+    if (!capturedImage) {
+      handleStartCamera()
+    }
+    return () => {
+      if (stream) {
+        handleStopCamera()
+        setStream(null)
+      }
+    }
+  }, [facingMode, capturedImage])
+
+  const handleStartCamera = async () => {
+    try {
+      setCameraError(null)
+      if (!videoRef.current) return
+      
+      const mediaStream = await startCamera(videoRef.current, {
+        facingMode,
+        width: config.camera.idealWidth,
+        height: config.camera.idealHeight,
+      })
+      setStream(mediaStream)
+      if (videoRef.current) {
+        const handleMetadata = () => updateOrientation()
+        videoRef.current.addEventListener("loadedmetadata", handleMetadata, { once: true })
+      }
+    } catch (err) {
+      console.error("Error accessing camera:", err)
+      setCameraError(err instanceof Error ? err.message : "Unable to access camera. Please check permissions.")
+    }
+  }
+
+  const handleStopCamera = () => {
+    stopCamera(stream)
+  }
+
+  const capturePhoto = async () => {
+    if (!videoRef.current || !canvasRef.current) return
+
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    
+    // Ensure video is ready
+    if (!video.videoWidth || !video.videoHeight) {
+      console.error("Video not ready")
+      return
+    }
+    
+    // Set canvas dimensions based on orientation
+    if (orientation === "vertical") {
+      // Portrait: height > width
+      canvas.width = Math.min(video.videoWidth, video.videoHeight)
+      canvas.height = Math.max(video.videoWidth, video.videoHeight)
+    } else {
+      // Landscape: width > height
+      canvas.width = Math.max(video.videoWidth, video.videoHeight)
+      canvas.height = Math.min(video.videoWidth, video.videoHeight)
+    }
+
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    // Clear canvas first
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    // Draw video frame, centered and scaled
+    const sourceAspect = video.videoWidth / video.videoHeight
+    const canvasAspect = canvas.width / canvas.height
+    
+    let sx = 0
+    let sy = 0
+    let sw = video.videoWidth
+    let sh = video.videoHeight
+    
+    if (sourceAspect > canvasAspect) {
+      // Source is wider, crop sides
+      sw = video.videoHeight * canvasAspect
+      sx = (video.videoWidth - sw) / 2
+    } else {
+      // Source is taller, crop top/bottom
+      sh = video.videoWidth / canvasAspect
+      sy = (video.videoHeight - sh) / 2
+    }
+    
+    // Draw video frame to canvas (this is the photo)
+    if (shouldMirror) {
+      ctx.save()
+      ctx.translate(canvas.width, 0)
+      ctx.scale(-1, 1)
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
+      ctx.restore()
+    } else {
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
+    }
+
+    // Apply overlay if selected (this will composite on top of the photo)
+    if (selectedOverlay !== "none") {
+      // Find the overlay from the loaded overlays list
+      const overlay = overlays.find(o => o.id === selectedOverlay)
+      console.log("Capturing photo with overlay:", {
+        selectedOverlay,
+        overlayFound: !!overlay,
+        overlay: overlay ? {
+          id: overlay.id,
+          name: overlay.name,
+          type: overlay.type,
+          imageUrl: overlay.imageUrl,
+        } : null,
+        totalOverlays: overlays.length,
+      })
+      await applyOverlayToCanvas(canvas, selectedOverlay, overlay)
+    }
+
+    // Get final image (photo + overlay composite)
+    const imageDataUrl = canvas.toDataURL("image/png")
+    setCapturedImage(imageDataUrl)
+    
+    // Stop camera after capturing
+    if (stream) {
+      handleStopCamera()
+      setStream(null)
+    }
+  }
+
+  const retakePhoto = () => {
+    setCapturedImage(null)
+    // Camera will restart automatically via useEffect when capturedImage becomes null
+  }
+
+  const savePhoto = () => {
+    if (capturedImage) {
+      onPhotoCapture(capturedImage)
+      setCapturedImage(null)
+    }
+  }
+
+  const downloadPhoto = () => {
+    if (!capturedImage) return
+    downloadImage(capturedImage, `${formatDateForFilename()}.png`)
+  }
+
+  const switchCamera = () => {
+    setFacingMode((prev) => (prev === "user" ? "environment" : "user"))
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-6">
+      <div className="w-full max-w-4xl">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <Button variant="ghost" size="icon" onClick={onBack}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h2 className="text-2xl font-bold">Photobooth</h2>
+          <div className="w-10" />
+        </div>
+
+        {/* Camera/Preview Card */}
+        <Card className="overflow-hidden mb-6">
+          <div className={`relative bg-muted ${orientation === "vertical" ? "aspect-[9/16]" : "aspect-video"}`}>
+            {cameraError ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center p-6">
+                  <Camera className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground">{cameraError}</p>
+                  <Button onClick={handleStartCamera} className="mt-4">
+                    Try Again
+                  </Button>
+                </div>
+              </div>
+            ) : capturedImage ? (
+              <img src={capturedImage || "/placeholder.svg"} alt="Captured" className="w-full h-full object-cover" />
+            ) : (
+              <div className="relative w-full h-full">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                  style={{ transform: shouldMirror ? "scaleX(-1)" : "none" }}
+                />
+                {/* Overlay Preview (for image-based overlays) */}
+                {overlayPreviewImage && (
+                  <canvas
+                    ref={previewCanvasRef}
+                    className="absolute inset-0 w-full h-full pointer-events-none"
+                    style={{ mixBlendMode: "normal" }}
+                  />
+                )}
+                {/* Camera Circle Button Overlay */}
+                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
+                  <button
+                    onClick={capturePhoto}
+                    className="w-20 h-20 rounded-full bg-white border-4 border-primary shadow-lg hover:scale-105 transition-transform active:scale-95 flex items-center justify-center"
+                    aria-label="Take Photo"
+                  >
+                    <div className="w-16 h-16 rounded-full bg-primary"></div>
+                  </button>
+                </div>
+              </div>
+            )}
+            <canvas ref={canvasRef} className="hidden" />
+          </div>
+        </Card>
+
+        {/* Orientation Indicator */}
+        {!capturedImage && (
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-sm font-medium">Photo Orientation (Auto)</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {orientation === "horizontal" ? (
+                <>
+                  <Maximize2 className="h-4 w-4" />
+                  <span>Horizontal</span>
+                </>
+              ) : (
+                <>
+                  <Minimize2 className="h-4 w-4" />
+                  <span>Vertical</span>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Mirror Toggle */}
+        {!capturedImage && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card px-4 py-3">
+              <Label htmlFor="mirror-front-camera" className="text-sm font-medium">
+                Mirror front camera
+              </Label>
+              <Switch
+                id="mirror-front-camera"
+                checked={mirrorFrontCamera}
+                onCheckedChange={setMirrorFrontCamera}
+                disabled={facingMode !== "user"}
+              />
+            </div>
+            {facingMode !== "user" && (
+              <p className="mt-2 text-xs text-muted-foreground">Switch to the front camera to enable mirror view.</p>
+            )}
+          </div>
+        )}
+
+        {/* Overlay Selector */}
+        {!capturedImage && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Select Overlay</span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {overlays.map((overlay) => (
+                <Button
+                  key={overlay.id}
+                  variant={selectedOverlay === overlay.id ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedOverlay(overlay.id)}
+                  className="flex-shrink-0"
+                  title={overlay.type === "image" ? overlay.name : undefined}
+                >
+                  {overlay.type === "emoji" && overlay.emoji && (
+                    <span className="mr-2">{overlay.emoji}</span>
+                  )}
+                  {overlay.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex gap-3 justify-center">
+          {capturedImage ? (
+            <>
+              <Button variant="outline" size="lg" onClick={retakePhoto}>
+                <RotateCcw className="mr-2 h-5 w-5" />
+                Retake
+              </Button>
+              <Button variant="outline" size="lg" onClick={downloadPhoto}>
+                <Download className="mr-2 h-5 w-5" />
+                Download
+              </Button>
+              <Button size="lg" onClick={savePhoto}>
+                <Sparkles className="mr-2 h-5 w-5" />
+                Save to Gallery
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline" size="lg" onClick={switchCamera}>
+              <RotateCcw className="mr-2 h-5 w-5" />
+              Flip Camera
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
