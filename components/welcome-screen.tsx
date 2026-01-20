@@ -18,14 +18,6 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
           backgroundImage: "url('/LNY-bkg.jpg')",
         }}
       />
-      
-      {/* Decorative elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-10 left-10 text-6xl opacity-20">🧧</div>
-        <div className="absolute top-32 right-20 text-5xl opacity-20">🏮</div>
-        <div className="absolute bottom-32 left-20 text-5xl opacity-20">🐉</div>
-        <div className="absolute bottom-20 right-32 text-6xl opacity-20">🎆</div>
-      </div>
 
       <div className="max-w-2xl mx-auto text-center relative z-10">
         {/* Logo/Header */}
