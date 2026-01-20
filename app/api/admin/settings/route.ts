@@ -15,9 +15,9 @@ export async function GET() {
         maxPhotos: 50,
       },
       branding: {
-        title: "Lunar New Year 2026",
+        title: "Lunar New Year Gala 2026",
         organization: "Monterey Park Chamber of Commerce",
-        footerText: "Year of the Snake • 新年快樂 • Gong Xi Fa Cai",
+        footerText: "Year of the Fire Horse • 新年快樂 • Gong Xi Fa Cai",
       },
       storage: {
         maxStorageMB: 500,

@@ -41,9 +41,9 @@ export const config = {
     compressionQuality: 0.7, // JPEG compression quality (0.0 to 1.0)
   },
   branding: {
-    primaryText: "Lunar New Year 2026",
+    primaryText: "Lunar New Year Gala 2026",
     secondaryText: "Monterey Park Chamber of Commerce",
-    footerText: "Year of the Snake • 新年快樂 • Gong Xi Fa Cai",
+    footerText: "Year of the Fire Horse • 新年快樂 • Gong Xi Fa Cai",
   },
   templates: [
     {
