@@ -25,7 +25,12 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
           <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-primary/10 mb-6">
             <Camera className="h-12 w-12 text-primary" />
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold text-balance mb-4 bg-gradient-to-br from-primary via-accent to-primary bg-clip-text text-transparent">
+          <h1 
+            className="text-5xl md:text-6xl font-bold text-balance mb-4 bg-gradient-to-br from-yellow-300 via-yellow-400 to-orange-400 bg-clip-text text-transparent"
+            style={{
+              textShadow: '0 2px 8px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.1)',
+            }}
+          >
             {config.branding.primaryText}
           </h1>
           <p className="text-xl md:text-2xl font-semibold text-foreground/90 mb-2">Photobooth Experience</p>
