@@ -33,8 +33,8 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
           >
             {config.branding.primaryText}
           </h1>
-          <p className="text-xl md:text-2xl font-semibold text-foreground/90 mb-2">Photobooth Experience</p>
-          <p className="text-sm md:text-base text-muted-foreground">{config.branding.secondaryText}</p>
+          <p className="text-xl md:text-2xl font-semibold text-white mb-2" style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.2)' }}>Photobooth Experience</p>
+          <p className="text-sm md:text-base font-bold bg-gradient-to-r from-yellow-300 to-yellow-400 bg-clip-text text-transparent">{config.branding.secondaryText}</p>
         </div>
 
         {/* Description */}
