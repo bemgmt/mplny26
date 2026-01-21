@@ -39,12 +39,12 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
 
         {/* Description */}
         <div className="mb-10 space-y-4">
-          <p className="text-lg text-foreground/80 text-balance leading-relaxed">
+          <p className="text-lg text-white text-balance leading-relaxed" style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.2)' }}>
             Capture the magic of Lunar New Year with festive photo overlays and filters. Create memorable moments to
             share with family and friends.
           </p>
 
-          <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-white">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
               <span>Festive Overlays</span>
@@ -71,7 +71,7 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
         </Button>
 
         {/* Footer */}
-        <p className="mt-12 text-xs text-muted-foreground">{config.branding.footerText}</p>
+        <p className="mt-12 text-xs text-white" style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.2)' }}>{config.branding.footerText}</p>
       </div>
     </div>
   )
