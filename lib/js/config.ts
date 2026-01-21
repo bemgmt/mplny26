@@ -17,10 +17,6 @@ export const config = {
   },
   overlays: [
     { id: "none", name: "No Overlay", emoji: "✨" },
-    { id: "lantern", name: "Lanterns", emoji: "🏮" },
-    { id: "dragon", name: "Dragon", emoji: "🐉" },
-    { id: "envelope", name: "Red Envelope", emoji: "🧧" },
-    { id: "fireworks", name: "Fireworks", emoji: "🎆" },
     {
       id: "lny-2026-vertical",
       name: "LNY 2026 Vertical Frame",
