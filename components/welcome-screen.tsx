@@ -19,7 +19,7 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
         }}
       />
 
-      <div className="max-w-2xl mx-auto text-center relative z-10">
+      <div className="max-w-2xl mx-auto text-center relative z-10" style={{ marginTop: '-15px' }}>
         {/* Logo/Header */}
         <div className="mb-8">
           <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-primary/10 mb-6">
@@ -37,38 +37,40 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
           <p className="text-sm md:text-base font-bold bg-gradient-to-r from-yellow-300 to-yellow-400 bg-clip-text text-transparent">{config.branding.secondaryText}</p>
         </div>
 
-        {/* Description */}
-        <div className="mb-10 space-y-4">
-          <p className="text-lg text-white text-balance leading-relaxed" style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.2)' }}>
-            Capture the magic of Lunar New Year with festive photo overlays and filters. Create memorable moments to
-            share with family and friends.
-          </p>
+        {/* Description and Button */}
+        <div>
+          <div className="mb-10 space-y-4">
+            <p className="text-lg text-white text-balance leading-relaxed" style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.2)' }}>
+              Capture the magic of Lunar New Year with festive photo overlays and filters. Create memorable moments to
+              share with family and friends.
+            </p>
 
-          <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-white">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4" />
-              <span>Festive Overlays</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Camera className="h-4 w-4" />
-              <span>Instant Capture</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span>📱</span>
-              <span>Easy Sharing</span>
+            <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-white">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                <span>Festive Overlays</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Camera className="h-4 w-4" />
+                <span>Instant Capture</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span>📱</span>
+                <span>Easy Sharing</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* CTA Button */}
-        <Button
-          size="lg"
-          onClick={onStart}
-          className="text-lg px-12 py-6 h-auto rounded-full shadow-lg hover:shadow-xl transition-all"
-        >
-          <Camera className="mr-2 h-5 w-5" />
-          Start Photobooth
-        </Button>
+          {/* CTA Button */}
+          <Button
+            size="lg"
+            onClick={onStart}
+            className="text-lg px-12 py-6 h-auto rounded-full shadow-lg hover:shadow-xl transition-all"
+          >
+            <Camera className="mr-2 h-5 w-5" />
+            Start Photobooth
+          </Button>
+        </div>
 
         {/* Footer */}
         <p className="mt-12 text-xs text-white" style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.2)' }}>{config.branding.footerText}</p>
