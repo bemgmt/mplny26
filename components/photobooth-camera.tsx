@@ -30,7 +30,7 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user")
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [orientation, setOrientation] = useState<PhotoOrientation>("horizontal")
-  const [mirrorFrontCamera, setMirrorFrontCamera] = useState(false)
+  const [mirrorFrontCamera, setMirrorFrontCamera] = useState(true)
   const previewCanvasRef = useRef<HTMLCanvasElement>(null)
   const shouldMirror = mirrorFrontCamera && facingMode === "user"
 
@@ -231,6 +231,13 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
       }
     }
   }, [stream])
+
+  // Auto-enable mirror when front camera is active
+  useEffect(() => {
+    if (facingMode === "user") {
+      setMirrorFrontCamera(true)
+    }
+  }, [facingMode])
 
   useEffect(() => {
     if (!capturedImage) {
