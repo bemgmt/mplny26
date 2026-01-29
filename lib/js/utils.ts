@@ -71,12 +71,34 @@ export function downloadImage(dataURL: string, filename: string): void {
 }
 
 /**
- * Share image using Web Share API
+ * Detect if user is on an Apple device
  */
-export async function shareImage(dataURL: string, title: string, text: string): Promise<void> {
+export function isAppleDevice(): boolean {
+  if (typeof navigator === "undefined") return false
+  return /Mac|iPhone|iPad|iPod/.test(navigator.userAgent)
+}
+
+/**
+ * Check if Web Share API is supported
+ */
+export function isShareSupported(): boolean {
+  return typeof navigator !== "undefined" && "share" in navigator
+}
+
+/**
+ * Check if AirDrop is likely available
+ */
+export function isAirDropSupported(): boolean {
+  return isShareSupported() && isAppleDevice()
+}
+
+/**
+ * Share image using Web Share API (AirDrop on Apple devices)
+ */
+export async function shareViaAirDrop(dataURL: string, title: string, text: string): Promise<void> {
   try {
     const blob = await (await fetch(dataURL)).blob()
-    const file = new File([blob], "lunar-new-year.png", { type: "image/png" })
+    const file = new File([blob], "donna-photobooth.png", { type: "image/png" })
 
     if (navigator.share) {
       await navigator.share({
@@ -91,16 +113,20 @@ export async function shareImage(dataURL: string, title: string, text: string): 
 }
 
 /**
- * Format date for filename
+ * Share image via email by opening a mail client
  */
-export function formatDateForFilename(date: Date = new Date()): string {
-  return `lunar-new-year-${date.getTime()}`
+export function shareViaEmail(dataURL: string, subject: string, body: string): void {
+  const filename = `donna-photo-${Date.now()}.png`
+  downloadImage(dataURL, filename)
+  const message = `${body}\n\nA photo has been downloaded. Please attach ${filename} to this email.`
+  const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`
+  window.location.href = mailto
 }
 
 /**
- * Check if Web Share API is supported
+ * Format date for filename
  */
-export function isShareSupported(): boolean {
-  return typeof navigator !== "undefined" && "share" in navigator
+export function formatDateForFilename(date: Date = new Date()): string {
+  return `donna-${date.getTime()}`
 }
 

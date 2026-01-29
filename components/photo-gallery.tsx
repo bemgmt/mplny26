@@ -1,9 +1,9 @@
 "use client"
 
-import { ArrowLeft, Download, Trash2, Share2 } from "lucide-react"
+import { ArrowLeft, Download, Trash2, Send, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { downloadImage, shareImage, isShareSupported } from "@/lib/js/utils"
+import { downloadImage, shareViaAirDrop, shareViaEmail, isAirDropSupported } from "@/lib/js/utils"
 import { config } from "@/lib/js/config"
 
 interface PhotoGalleryProps {
@@ -18,11 +18,15 @@ export default function PhotoGallery({ photos, onBack, onDeletePhoto }: PhotoGal
   }
 
   const handleSharePhoto = async (photoDataUrl: string) => {
-    await shareImage(
+    await shareViaAirDrop(
       photoDataUrl,
       config.branding.primaryText,
       "Captured with DONNA Photobooth."
     )
+  }
+
+  const handleEmailPhoto = (photoDataUrl: string) => {
+    shareViaEmail(photoDataUrl, config.branding.primaryText, "Captured with DONNA Photobooth.")
   }
 
   return (
@@ -77,17 +81,25 @@ export default function PhotoGallery({ photos, onBack, onDeletePhoto }: PhotoGal
                       >
                         <Download className="h-4 w-4" />
                       </Button>
-                      {isShareSupported() && (
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          onClick={() => handleSharePhoto(photo)}
-                          title="Share"
-                          className="h-8 w-8"
-                        >
-                          <Share2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => handleSharePhoto(photo)}
+                        title={isAirDropSupported() ? "AirDrop" : "AirDrop (Apple devices only)"}
+                        className="h-8 w-8"
+                        disabled={!isAirDropSupported()}
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => handleEmailPhoto(photo)}
+                        title="Email"
+                        className="h-8 w-8"
+                      >
+                        <Mail className="h-4 w-4" />
+                      </Button>
                       <Button
                         size="icon"
                         variant="destructive"
