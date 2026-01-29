@@ -64,7 +64,7 @@ export default function PhotoboothApp() {
 
       {currentScreen !== "welcome" && (
         <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-          <div className="flex gap-3 bg-card/95 backdrop-blur-lg border border-border rounded-full px-4 py-3 shadow-xl">
+          <div className="flex gap-3 bg-card/80 backdrop-blur-lg border border-border/60 rounded-full px-4 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
             <Button
               variant={currentScreen === "welcome" ? "default" : "ghost"}
               size="icon"
@@ -89,7 +89,7 @@ export default function PhotoboothApp() {
             >
               <Sparkles className="h-5 w-5" />
               {capturedPhotos.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold">
                   {capturedPhotos.length}
                 </span>
               )}

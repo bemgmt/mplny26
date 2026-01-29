@@ -24,53 +24,16 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
-  const [selectedOverlay, setSelectedOverlay] = useState("none")
+  const [selectedOverlay, setSelectedOverlay] = useState("donna-frame-vertical")
   const [overlays, setOverlays] = useState<Overlay[]>([])
   const [overlayPreviewImage, setOverlayPreviewImage] = useState<HTMLImageElement | null>(null)
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user")
   const [cameraError, setCameraError] = useState<string | null>(null)
-  const [orientation, setOrientation] = useState<PhotoOrientation>("horizontal")
+  const [orientation, setOrientation] = useState<PhotoOrientation>("vertical")
   const [mirrorFrontCamera, setMirrorFrontCamera] = useState(true)
   const previewCanvasRef = useRef<HTMLCanvasElement>(null)
   const shouldMirror = mirrorFrontCamera && facingMode === "user"
-
-  const getOrientationFromScreen = (): PhotoOrientation | null => {
-    const screenOrientation = window.screen?.orientation?.type
-    if (screenOrientation?.includes("portrait")) return "vertical"
-    if (screenOrientation?.includes("landscape")) return "horizontal"
-    const legacyOrientation = (window as Window & { orientation?: number }).orientation
-    if (typeof legacyOrientation === "number") {
-      return Math.abs(legacyOrientation) === 90 ? "horizontal" : "vertical"
-    }
-    return null
-  }
-
-  const getOrientationFromVideo = (): PhotoOrientation | null => {
-    const video = videoRef.current
-    if (video?.videoWidth && video?.videoHeight) {
-      return video.videoWidth >= video.videoHeight ? "horizontal" : "vertical"
-    }
-
-    const settings = stream?.getVideoTracks?.()?.[0]?.getSettings?.()
-    if (settings?.width && settings?.height) {
-      return settings.width >= settings.height ? "horizontal" : "vertical"
-    }
-
-    return null
-  }
-
-  const updateOrientation = () => {
-    const screenOrientation = getOrientationFromScreen()
-    if (screenOrientation) {
-      setOrientation(screenOrientation)
-      return
-    }
-
-    const fallbackOrientation = getOrientationFromVideo()
-    if (fallbackOrientation) {
-      setOrientation(fallbackOrientation)
-    }
-  }
+  const orientationOverlayId = orientation === "vertical" ? "donna-frame-vertical" : "donna-frame-horizontal"
 
   // Load overlays on mount and refresh periodically
   useEffect(() => {
@@ -127,6 +90,21 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
       setOverlayPreviewImage(null)
     }
   }, [selectedOverlay, overlays])
+
+  useEffect(() => {
+    setSelectedOverlay((prev) => {
+      if (prev === "none" || prev.startsWith("donna-frame")) {
+        return orientationOverlayId
+      }
+      return prev
+    })
+  }, [orientation, orientationOverlayId])
+
+  useEffect(() => {
+    if (!overlays.find((overlay) => overlay.id === selectedOverlay)) {
+      setSelectedOverlay(orientationOverlayId)
+    }
+  }, [overlays, selectedOverlay, orientationOverlayId])
 
   // Draw overlay preview on video (for image-based overlays)
   useEffect(() => {
@@ -210,28 +188,6 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
     }
   }, [overlayPreviewImage, shouldMirror])
 
-  useEffect(() => {
-    updateOrientation()
-
-    const handleOrientationChange = () => updateOrientation()
-    window.addEventListener("resize", handleOrientationChange)
-
-    if (window.screen?.orientation?.addEventListener) {
-      window.screen.orientation.addEventListener("change", handleOrientationChange)
-    } else {
-      window.addEventListener("orientationchange", handleOrientationChange)
-    }
-
-    return () => {
-      window.removeEventListener("resize", handleOrientationChange)
-      if (window.screen?.orientation?.removeEventListener) {
-        window.screen.orientation.removeEventListener("change", handleOrientationChange)
-      } else {
-        window.removeEventListener("orientationchange", handleOrientationChange)
-      }
-    }
-  }, [stream])
-
   // Auto-enable mirror when front camera is active
   useEffect(() => {
     if (facingMode === "user") {
@@ -262,10 +218,6 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
         height: config.camera.idealHeight,
       })
       setStream(mediaStream)
-      if (videoRef.current) {
-        const handleMetadata = () => updateOrientation()
-        videoRef.current.addEventListener("loadedmetadata", handleMetadata, { once: true })
-      }
     } catch (err) {
       console.error("Error accessing camera:", err)
       setCameraError(err instanceof Error ? err.message : "Unable to access camera. Please check permissions.")
@@ -393,13 +345,13 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
           <Button variant="ghost" size="icon" onClick={onBack}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h2 className="text-2xl font-bold">Photobooth</h2>
+          <h2 className="text-2xl font-semibold">Capture</h2>
           <div className="w-10" />
         </div>
 
         {/* Camera/Preview Card */}
-        <Card className="overflow-hidden mb-6">
-          <div className={`relative bg-muted ${orientation === "vertical" ? "aspect-[9/16]" : "aspect-video"}`}>
+        <Card className="overflow-hidden mb-6 border-border/60 bg-card/70 shadow-[0_14px_40px_rgba(0,0,0,0.3)]">
+          <div className={`relative bg-muted/40 ${orientation === "vertical" ? "aspect-[9/16]" : "aspect-video"}`}>
             {cameraError ? (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center p-6">
@@ -434,7 +386,7 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
                 <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
                   <button
                     onClick={capturePhoto}
-                    className="w-20 h-20 rounded-full bg-white border-4 border-primary shadow-lg hover:scale-105 transition-transform active:scale-95 flex items-center justify-center"
+                    className="w-20 h-20 rounded-full bg-foreground border-4 border-primary shadow-lg hover:scale-105 transition-transform active:scale-95 flex items-center justify-center"
                     aria-label="Take Photo"
                   >
                     <div className="w-16 h-16 rounded-full bg-primary"></div>
@@ -446,24 +398,32 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
           </div>
         </Card>
 
-        {/* Orientation Indicator */}
+        {/* Orientation Toggle */}
         {!capturedImage && (
           <div className="mb-4">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-sm font-medium">Photo Orientation (Auto)</span>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium">Frame orientation</span>
+              <span className="text-xs text-muted-foreground">Default: Vertical</span>
             </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {orientation === "horizontal" ? (
-                <>
-                  <Maximize2 className="h-4 w-4" />
-                  <span>Horizontal</span>
-                </>
-              ) : (
-                <>
-                  <Minimize2 className="h-4 w-4" />
-                  <span>Vertical</span>
-                </>
-              )}
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={orientation === "vertical" ? "default" : "outline"}
+                onClick={() => setOrientation("vertical")}
+                className="justify-center"
+              >
+                <Minimize2 className="mr-2 h-4 w-4" />
+                Vertical
+              </Button>
+              <Button
+                type="button"
+                variant={orientation === "horizontal" ? "default" : "outline"}
+                onClick={() => setOrientation("horizontal")}
+                className="justify-center"
+              >
+                <Maximize2 className="mr-2 h-4 w-4" />
+                Horizontal
+              </Button>
             </div>
           </div>
         )}
@@ -493,7 +453,7 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-3">
               <Sparkles className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Select Overlay</span>
+              <span className="text-sm font-medium">Frame selection</span>
             </div>
             <div className="flex gap-2 overflow-x-auto pb-2">
               {overlays.map((overlay) => (

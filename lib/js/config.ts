@@ -1,14 +1,13 @@
 /**
- * Configuration for Lunar New Year 2026 Photobooth
- * Monterey Park Chamber of Commerce
+ * Configuration for DONNA Photobooth
  */
 
 export const config = {
   app: {
-    name: "Lunar New Year 2026 Photobooth",
-    organization: "Monterey Park Chamber of Commerce",
+    name: "DONNA Photobooth",
+    organization: "DONNA",
     year: 2026,
-    theme: "lunar-new-year",
+    theme: "donna",
   },
   camera: {
     defaultFacingMode: "user" as "user" | "environment",
@@ -16,30 +15,30 @@ export const config = {
     idealHeight: 1080,
   },
   overlays: [
-    { id: "none", name: "No Overlay", emoji: "✨" },
+    { id: "none", name: "No Overlay" },
     {
-      id: "lny-2026-vertical",
-      name: "LNY 2026 Vertical Frame",
+      id: "donna-frame-vertical",
+      name: "DONNA Vertical Frame",
       type: "image",
-      imageUrl: "/img/overlays/LNY%20PHOTOBOOTH_VERTICAL_V2-02.png",
+      imageUrl: "/donna/DONNA_PHOTOBOOTH_VERTICAL_V3.gif",
     },
     {
-      id: "lny-2026-horizontal",
-      name: "LNY 2026 Horizontal Frame",
+      id: "donna-frame-horizontal",
+      name: "DONNA Horizontal Frame",
       type: "image",
-      imageUrl: "/img/overlays/LNY%20PHOTOBOOTH_HORIZONTAL_V2-01.png",
+      imageUrl: "/donna/DONNA_PHOTOBOOTH_HORIZONTAL_V3.gif",
     },
   ],
   storage: {
-    photosKey: "lunar-new-year-photos",
-    sessionKey: "lunar-new-year-session",
+    photosKey: "donna-photobooth-photos",
+    sessionKey: "donna-photobooth-session",
     maxPhotos: 15, // Maximum number of photos to keep in localStorage (reduced due to size limits)
     compressionQuality: 0.7, // JPEG compression quality (0.0 to 1.0)
   },
   branding: {
-    primaryText: "Lunar New Year Gala 2026",
-    secondaryText: "Monterey Park Chamber of Commerce",
-    footerText: "Year of the Fire Horse • 新年快樂 • Gong Xi Fa Cai",
+    primaryText: "DONNA",
+    secondaryText: "Digital Operations Neural Network Assistant",
+    footerText: "One AI. Every Industry.",
   },
   templates: [
     {

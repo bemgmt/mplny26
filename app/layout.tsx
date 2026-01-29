@@ -8,9 +8,9 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Lunar New Year Gala 2026 Photobooth | Monterey Park Chamber of Commerce",
+  title: "DONNA Photobooth",
   description:
-    "Celebrate Lunar New Year Gala 2026 with our interactive photobooth - capture memories with festive overlays and filters",
+    "Operational intelligence, captured in a calm, modern photobooth experience.",
   generator: "v0.app",
   icons: {
     icon: [
