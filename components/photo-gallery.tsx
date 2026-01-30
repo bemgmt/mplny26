@@ -14,19 +14,19 @@ interface PhotoGalleryProps {
 
 export default function PhotoGallery({ photos, onBack, onDeletePhoto }: PhotoGalleryProps) {
   const handleDownloadPhoto = (photoDataUrl: string, index: number) => {
-    downloadImage(photoDataUrl, `donna-photo-${index + 1}.png`)
+    downloadImage(photoDataUrl, `wsgvr-happyhour-${index + 1}.png`)
   }
 
   const handleSharePhoto = async (photoDataUrl: string) => {
     await shareViaAirDrop(
       photoDataUrl,
       config.branding.primaryText,
-      "Captured with DONNA Photobooth."
+      "Captured at the WSGVR Affiliate Happy Hour."
     )
   }
 
   const handleEmailPhoto = (photoDataUrl: string) => {
-    shareViaEmail(photoDataUrl, config.branding.primaryText, "Captured with DONNA Photobooth.")
+    shareViaEmail(photoDataUrl, config.branding.primaryText, "Captured at the WSGVR Affiliate Happy Hour.")
   }
 
   return (
@@ -46,13 +46,13 @@ export default function PhotoGallery({ photos, onBack, onDeletePhoto }: PhotoGal
           <Card className="p-12 border-border/60 bg-card/70">
             <div className="text-center">
               <div className="flex items-center justify-center mb-5">
-                <div className="rounded-2xl border border-border/60 bg-background/40 px-6 py-4">
-                  <img src="/donna/DONNA-logo.png" alt="DONNA" className="h-10 object-contain" />
+                <div className="rounded-2xl border border-border/60 bg-background/40 px-6 py-4 text-sm uppercase tracking-[0.25em] text-muted-foreground">
+                  WSGVR Happy Hour
                 </div>
               </div>
               <h3 className="text-xl font-semibold mb-2">No captures yet</h3>
               <p className="text-muted-foreground mb-6">
-                Start capturing to build your DONNA gallery.
+                Start capturing to build your Happy Hour gallery.
               </p>
               <Button onClick={onBack}>Take Your First Photo</Button>
             </div>

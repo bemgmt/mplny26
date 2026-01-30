@@ -8,9 +8,9 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "DONNA Photobooth",
+  title: "WSGVR Affiliate Happy Hour Photobooth",
   description:
-    "Operational intelligence, captured in a calm, modern photobooth experience.",
+    "Celebrate Happy New Year at the WSGVR Affiliate Happy Hour with a festive photo booth.",
   generator: "v0.app",
   icons: {
     icon: [

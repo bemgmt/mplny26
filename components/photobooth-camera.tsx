@@ -1,14 +1,14 @@
 "use client"
 
 import { useRef, useState, useEffect } from "react"
-import { Camera, RotateCcw, Download, Sparkles, ArrowLeft, Maximize2, Minimize2 } from "lucide-react"
+import { Camera, RotateCcw, Download, Sparkles, ArrowLeft, Maximize2, Minimize2, Send, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { startCamera, stopCamera } from "@/lib/js/camera"
 import { applyOverlayToCanvas } from "@/lib/js/photobooth"
-import { downloadImage, formatDateForFilename } from "@/lib/js/utils"
+import { downloadImage, formatDateForFilename, shareViaAirDrop, shareViaEmail, isAirDropSupported } from "@/lib/js/utils"
 import { getOverlays, getOverlaysAsync, refreshOverlays, Overlay } from "@/lib/js/overlays"
 import { config } from "@/lib/js/config"
 
@@ -24,16 +24,19 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
-  const [selectedOverlay, setSelectedOverlay] = useState("donna-frame-vertical")
+  const [selectedOverlay, setSelectedOverlay] = useState("wsgvr-frame-vertical")
   const [overlays, setOverlays] = useState<Overlay[]>([])
   const [overlayPreviewImage, setOverlayPreviewImage] = useState<HTMLImageElement | null>(null)
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user")
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [orientation, setOrientation] = useState<PhotoOrientation>("vertical")
   const [mirrorFrontCamera, setMirrorFrontCamera] = useState(true)
+  const [countdown, setCountdown] = useState<number | null>(null)
+  const [isCountingDown, setIsCountingDown] = useState(false)
   const previewCanvasRef = useRef<HTMLCanvasElement>(null)
+  const countdownIntervalRef = useRef<number | null>(null)
   const shouldMirror = mirrorFrontCamera && facingMode === "user"
-  const orientationOverlayId = orientation === "vertical" ? "donna-frame-vertical" : "donna-frame-horizontal"
+  const orientationOverlayId = orientation === "vertical" ? "wsgvr-frame-vertical" : "none"
 
   // Load overlays on mount and refresh periodically
   useEffect(() => {
@@ -93,7 +96,7 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
 
   useEffect(() => {
     setSelectedOverlay((prev) => {
-      if (prev === "none" || prev.startsWith("donna-frame")) {
+      if (prev === "none" || prev.startsWith("wsgvr-frame")) {
         return orientationOverlayId
       }
       return prev
@@ -207,6 +210,15 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
     }
   }, [facingMode, capturedImage])
 
+  useEffect(() => {
+    return () => {
+      if (countdownIntervalRef.current) {
+        window.clearInterval(countdownIntervalRef.current)
+        countdownIntervalRef.current = null
+      }
+    }
+  }, [])
+
   const handleStartCamera = async () => {
     try {
       setCameraError(null)
@@ -316,6 +328,33 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
     }
   }
 
+  const startCountdown = () => {
+    if (isCountingDown || capturedImage) return
+    if (countdownIntervalRef.current) {
+      window.clearInterval(countdownIntervalRef.current)
+      countdownIntervalRef.current = null
+    }
+
+    setCountdown(3)
+    setIsCountingDown(true)
+
+    countdownIntervalRef.current = window.setInterval(() => {
+      setCountdown((prev) => {
+        if (!prev || prev <= 1) {
+          if (countdownIntervalRef.current) {
+            window.clearInterval(countdownIntervalRef.current)
+            countdownIntervalRef.current = null
+          }
+          setIsCountingDown(false)
+          setCountdown(null)
+          capturePhoto()
+          return null
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }
+
   const retakePhoto = () => {
     setCapturedImage(null)
     // Camera will restart automatically via useEffect when capturedImage becomes null
@@ -331,6 +370,20 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
   const downloadPhoto = () => {
     if (!capturedImage) return
     downloadImage(capturedImage, `${formatDateForFilename()}.png`)
+  }
+
+  const sharePhoto = async () => {
+    if (!capturedImage) return
+    await shareViaAirDrop(
+      capturedImage,
+      config.branding.primaryText,
+      "Captured at the WSGVR Affiliate Happy Hour."
+    )
+  }
+
+  const emailPhoto = () => {
+    if (!capturedImage) return
+    shareViaEmail(capturedImage, config.branding.primaryText, "Captured at the WSGVR Affiliate Happy Hour.")
   }
 
   const switchCamera = () => {
@@ -385,13 +438,21 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
                 {/* Camera Circle Button Overlay */}
                 <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
                   <button
-                    onClick={capturePhoto}
-                    className="w-20 h-20 rounded-full bg-foreground border-4 border-primary shadow-lg hover:scale-105 transition-transform active:scale-95 flex items-center justify-center"
+                    onClick={startCountdown}
+                    className="w-20 h-20 rounded-full bg-foreground border-4 border-primary shadow-lg hover:scale-105 transition-transform active:scale-95 flex items-center justify-center disabled:opacity-60"
                     aria-label="Take Photo"
+                    disabled={isCountingDown}
                   >
                     <div className="w-16 h-16 rounded-full bg-primary"></div>
                   </button>
                 </div>
+                {countdown !== null && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/35">
+                    <span className="text-6xl md:text-7xl font-semibold text-white drop-shadow-[0_0_16px_rgba(255,255,255,0.35)]">
+                      {countdown}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
             <canvas ref={canvasRef} className="hidden" />
@@ -476,7 +537,7 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-3 justify-center">
+        <div className="flex flex-wrap gap-3 justify-center">
           {capturedImage ? (
             <>
               <Button variant="outline" size="lg" onClick={retakePhoto}>
@@ -486,6 +547,20 @@ export default function PhotoboothCamera({ onPhotoCapture, onBack }: PhotoboothC
               <Button variant="outline" size="lg" onClick={downloadPhoto}>
                 <Download className="mr-2 h-5 w-5" />
                 Download
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={sharePhoto}
+                disabled={!isAirDropSupported()}
+                title={isAirDropSupported() ? "AirDrop" : "AirDrop (Apple devices only)"}
+              >
+                <Send className="mr-2 h-5 w-5" />
+                AirDrop
+              </Button>
+              <Button variant="outline" size="lg" onClick={emailPhoto}>
+                <Mail className="mr-2 h-5 w-5" />
+                Email
               </Button>
               <Button size="lg" onClick={savePhoto}>
                 <Sparkles className="mr-2 h-5 w-5" />

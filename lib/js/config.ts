@@ -1,13 +1,13 @@
 /**
- * Configuration for DONNA Photobooth
+ * Configuration for WSGVR Affiliate Happy Hour Photobooth
  */
 
 export const config = {
   app: {
-    name: "DONNA Photobooth",
-    organization: "DONNA",
+    name: "WSGVR Affiliate Happy Hour Photobooth",
+    organization: "West San Gabriel Valley REALTORS®",
     year: 2026,
-    theme: "donna",
+    theme: "wsgvr-happy-hour",
   },
   camera: {
     defaultFacingMode: "user" as "user" | "environment",
@@ -17,28 +17,22 @@ export const config = {
   overlays: [
     { id: "none", name: "No Overlay" },
     {
-      id: "donna-frame-vertical",
-      name: "DONNA Vertical Frame",
+      id: "wsgvr-frame-vertical",
+      name: "WSGVR Happy Hour Vertical",
       type: "image",
-      imageUrl: "/donna/DONNA_PHOTOBOOTH_VERTICAL_V3.gif",
-    },
-    {
-      id: "donna-frame-horizontal",
-      name: "DONNA Horizontal Frame",
-      type: "image",
-      imageUrl: "/donna/DONNA_PHOTOBOOTH_HORIZONTAL_V3.gif",
+      imageUrl: "/img/overlays/wsgvr-affiliate-happyhour-vertical.svg",
     },
   ],
   storage: {
-    photosKey: "donna-photobooth-photos",
-    sessionKey: "donna-photobooth-session",
+    photosKey: "wsgvr-happyhour-photos",
+    sessionKey: "wsgvr-happyhour-session",
     maxPhotos: 15, // Maximum number of photos to keep in localStorage (reduced due to size limits)
     compressionQuality: 0.7, // JPEG compression quality (0.0 to 1.0)
   },
   branding: {
-    primaryText: "DONNA",
-    secondaryText: "Digital Operations Neural Network Assistant",
-    footerText: "One AI. Every Industry.",
+    primaryText: "Affiliate Happy Hour",
+    secondaryText: "West San Gabriel Valley REALTORS®",
+    footerText: "Thursday, January 29, 2026 • 3:00 PM – 6:00 PM • Holiday Inn Monterey Park",
   },
   templates: [
     {

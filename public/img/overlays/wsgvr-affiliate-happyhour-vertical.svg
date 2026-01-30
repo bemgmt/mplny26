@@ -1,0 +1,53 @@
+<svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="goldLine" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f7e19a"/>
+      <stop offset="100%" stop-color="#d2a547"/>
+    </linearGradient>
+    <mask id="borderMask">
+      <rect width="1080" height="1920" fill="white"/>
+      <rect x="130" y="230" width="820" height="1460" rx="36" fill="black"/>
+    </mask>
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g mask="url(#borderMask)">
+    <rect width="1080" height="1920" fill="rgba(16,16,20,0.75)"/>
+  </g>
+
+  <rect x="70" y="70" width="940" height="1780" rx="42" fill="none" stroke="url(#goldLine)" stroke-width="6"/>
+  <rect x="100" y="100" width="880" height="1720" rx="36" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+
+  <text x="540" y="150" text-anchor="middle" fill="#f7f4ee" font-size="42" font-family="Georgia, 'Times New Roman', serif" letter-spacing="2">
+    Affiliate Happy Hour
+  </text>
+  <text x="540" y="200" text-anchor="middle" fill="#f6e7c8" font-size="30" font-family="'Brush Script MT', 'Segoe Script', cursive">
+    Happy New Year
+  </text>
+  <text x="540" y="248" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="22" font-family="Arial, sans-serif" letter-spacing="1">
+    West San Gabriel Valley REALTORS�
+  </text>
+
+  <g filter="url(#softGlow)" opacity="0.85" stroke="#f5f1e8" stroke-width="4" stroke-linecap="round">
+    <line x1="540" y1="920" x2="540" y2="980"/>
+    <line x1="510" y1="950" x2="570" y2="950"/>
+    <line x1="520" y1="930" x2="560" y2="970"/>
+    <line x1="520" y1="970" x2="560" y2="930"/>
+  </g>
+
+  <circle cx="210" cy="1560" r="36" fill="#f7e62d" stroke="rgba(0,0,0,0.4)" stroke-width="3"/>
+  <circle cx="870" cy="1560" r="36" fill="#e85647" stroke="rgba(0,0,0,0.4)" stroke-width="3"/>
+
+  <text x="540" y="1720" text-anchor="middle" fill="#f7f4ee" font-size="28" font-family="Georgia, 'Times New Roman', serif">
+    Thursday, January 29, 2026 " 3:00 PM  6:00 PM
+  </text>
+  <text x="540" y="1762" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="22" font-family="Arial, sans-serif">
+    Holiday Inn Monterey Park
+  </text>
+</svg>

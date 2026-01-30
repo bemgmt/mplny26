@@ -98,7 +98,7 @@ export function isAirDropSupported(): boolean {
 export async function shareViaAirDrop(dataURL: string, title: string, text: string): Promise<void> {
   try {
     const blob = await (await fetch(dataURL)).blob()
-    const file = new File([blob], "donna-photobooth.png", { type: "image/png" })
+    const file = new File([blob], "wsgvr-happyhour.png", { type: "image/png" })
 
     if (navigator.share) {
       await navigator.share({
@@ -116,7 +116,7 @@ export async function shareViaAirDrop(dataURL: string, title: string, text: stri
  * Share image via email by opening a mail client
  */
 export function shareViaEmail(dataURL: string, subject: string, body: string): void {
-  const filename = `donna-photo-${Date.now()}.png`
+  const filename = `wsgvr-happyhour-${Date.now()}.png`
   downloadImage(dataURL, filename)
   const message = `${body}\n\nA photo has been downloaded. Please attach ${filename} to this email.`
   const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`
@@ -127,6 +127,6 @@ export function shareViaEmail(dataURL: string, subject: string, body: string): v
  * Format date for filename
  */
 export function formatDateForFilename(date: Date = new Date()): string {
-  return `donna-${date.getTime()}`
+  return `wsgvr-${date.getTime()}`
 }
 
