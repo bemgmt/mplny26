@@ -20,7 +20,13 @@ export const config = {
       id: "wsgvr-frame-vertical",
       name: "WSGVR Happy Hour Vertical",
       type: "image",
-      imageUrl: "/img/overlays/wsgvr-affiliate-happyhour-vertical.svg",
+      imageUrl: "/img/overlays/happyhour-vertical.png",
+    },
+    {
+      id: "wsgvr-frame-horizontal",
+      name: "WSGVR Happy Hour Horizontal",
+      type: "image",
+      imageUrl: "/img/overlays/happyhour-horizontal.png",
     },
   ],
   storage: {
